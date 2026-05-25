@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terminal</title>
+  <style>
+    body {
+      position: relative;
+
+      box-sizing: border-box;
+      width: 100vw;
+      height: 100vh;
+      margin: 0;
+      padding: 0;
+
+      border: 0;
+    }
+
+    #canvas,
+    #input {
+      position: absolute;
+
+      display: block;
+
+      box-sizing: border-box;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+
+      border: 0;
+      outline: none;
+    }
+
+    #input {
+      color: #fff;
+      background: transparent;
+
+      font-size: 16px;
+      line-height: 16px;
+
+      caret-color: transparent;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="canvas"></canvas>
+  <div id="input" contenteditable="true" autofocus></div>
+
+  <script type="module">
+    import init, {
+      shitty_unifont_new,
+      shitty_new,
+      shitty_alloc_display_buffer,
+      shitty_flush,
+      shitty_process_char,
+    } from "./pkg/shitty.js";
+
+    const input = document.getElementById("input");
+
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+
+    const width = canvas.width = window.innerWidth;
+    const height = canvas.height = window.innerHeight;
+
+    const wasm = await init();
+    const font = shitty_unifont_new();
+    const term = shitty_new(width, height, 1, font);
+    const buf = shitty_alloc_display_buffer(width, height);
+
+    function process(text) {
+      for (let i = 0; i < text.length; i++) {
+        shitty_process_char(term, text[i]);
+      }
+      shitty_flush(term, width, height, width, buf, BigInt(Math.floor(performance.now())));
+      const mem = new Uint8ClampedArray(wasm.memory.buffer, buf, width * height * 4);
+      const imageData = new ImageData(mem, width, height);
+      ctx.putImageData(imageData, 0, 0);
+    }
+
+    // input.onbeforeinput = (e) => {
+    //   if (e.inputType === 'insertText' && e.data) {
+    //     e.preventDefault();
+    //     process(e.data.replace(/\n/g, '\r\n'));
+    //   }
+    //   if (e.inputType === 'insertLineBreak') {
+    //     e.preventDefault();
+    //     process('\r\n');
+    //   }
+    //   if (e.inputType === 'deleteContentBackward') {
+    //     e.preventDefault();
+    //     process('\b');
+    //   }
+    //   console.log(e);
+    // };
+    input.onbeforeinput = (e) => {
+      if (e.inputType === 'insertParagraph') {
+        e.preventDefault();
+        document.execCommand('insertLineBreak');
+      }
+    };
+    input.oninput = (e) => {
+      const text = input.textContent;
+      input.textContent = '';
+      process(text.replace(/\n/g, '\r\n'));
+      console.log(e);
+      console.log(text);
+    };
+
+    const text = `
+Hello, World!
+This is a shitty terminal emulator.
+It supports multiple lines and colors.
+Enjoy!
+\x1b[38;2;255;0;0mRed Text\x1b[0m
+\x1b[38;2;0;255;0mGreen Text\x1b[0m
+\x1b[38;2;0;0;255mBlue Text\x1b[0m
+`.trim().replace(/\n/g, '\r\n') + '\r\n';
+    process(text);
+  </script>
+</body>
+
+</html>

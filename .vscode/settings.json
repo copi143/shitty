@@ -1,0 +1,38 @@
+{
+  "editor.tabSize": 4,
+  "rust-analyzer.cargo.noDefaultFeatures": true,
+  "rust-analyzer.cargo.features": [
+    "bin",
+    "shutup-rust-analyzer",
+    "default-rgba",
+    "IBM_VGA_8x16",
+    "font-unifont",
+    "font-bitmap",
+    "font-abglyph",
+    "font-swash",
+    "font-woff2",
+    "font-truetype",
+    "keyboard-scancode",
+    "winit",
+    "softbuffer",
+    "ffi",
+    "ffi-std",
+    "wasm",
+    "vte",
+    "ansi-parser",
+    "shitty-parser",
+    "fast-parser",
+    "native",
+    "logging",
+    "snapshot"
+  ],
+  "rust-analyzer.check.command": "clippy",
+  "rust-analyzer.check.extraArgs": [
+    // "-Z",
+    // "build-std=core,alloc",
+    // "--target",
+    // "x86_64-unknown-none"
+    // "--example",
+    // "terminal"
+  ]
+}

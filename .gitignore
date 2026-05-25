@@ -1,0 +1,9 @@
+/local
+/bin
+/lib
+/target
+/themes
+# /.vscode
+flamegraph*
+profile*
+*.data

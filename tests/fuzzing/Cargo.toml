@@ -1,0 +1,25 @@
+[package]
+name = "shitty-fuzzing"
+publish = false
+edition = "2024"
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+
+[package.metadata]
+cargo-fuzz = true
+
+[[bin]]
+name = "fuzzing"
+path = "fuzzing.rs"
+test = false
+doc = false
+bench = false
+
+[dependencies]
+libfuzzer-sys = "0.4.12"
+arbitrary = { version = "1.4.2", features = ["derive"] }
+shitty = { path = "../..", features = ["font-unifont"] }

@@ -1,0 +1,187 @@
+[package]
+name = "shitty"
+version = "0.0.1"
+edition = "2024"
+authors = ["copi143 <copi143@outlook.com>"]
+license = "MIT OR Apache-2.0"
+exclude = ["/examples", "/scripts", "/www", "/.github", "/.vscode"]
+description = "A simple implementation of the shitty TTY protocol."
+
+[lib]
+crate-type = ["cdylib", "rlib", "staticlib"]
+
+[[bin]]
+name = "shitty"
+required-features = ["bin"]
+
+[profile.dev]
+debug = true
+opt-level = 1
+
+[profile.release]
+overflow-checks = false
+debug-assertions = false
+debug = true
+lto = true
+opt-level = 3
+panic = "abort"
+codegen-units = 1
+
+[features]
+default = ["std-default"]
+std-default = ["std", "default-bgra", "shitty-parser", "logging"]
+ffi-default = ["ffi", "default-bgra", "shitty-parser", "logging"]
+wasm-default = ["wasm", "default-rgba", "shitty-parser", "logging"]
+bin = [
+    "winit",
+    "softbuffer",
+    "native",
+    "font-unifont",
+    "dep:arboard",
+    "dep:keycode",
+    "dep:io-uring",
+    "winit/rwh_06",
+    "winit/x11",
+    "winit/wayland-dlopen",
+    "softbuffer/x11",
+    "softbuffer/wayland",
+    "softbuffer/x11-dlopen",
+    "softbuffer/wayland-dlopen",
+]
+std = []
+shutup-rust-analyzer = [] # 让 RA 不要抱怨在静态检查时同时使用 `std` 与 `ffi` 导致重复的 panic 实现等内容
+
+rustc-likely-unlikely = []
+
+# 默认的颜色格式，内部传递时使用的格式
+default-rgba = []
+default-bgra = []
+default-argb = []
+default-abgr = []
+
+color-formats = ["rgba", "bgra", "argb", "abgr"]
+
+rgba = [] # in memeory `R G B A` order, 8 bits per channel
+bgra = [] # in memeory `B G R A` order, 8 bits per channel
+argb = [] # in memeory `A R G B` order, 8 bits per channel
+abgr = [] # in memeory `A B G R` order, 8 bits per channel
+# rgba_plane = [] # in memeory `R R R ... G G G ... B B B ... A A A ...` order, 8 bits per channel
+
+rgba16 = [] # in memeory `R G B A` order, 16 bits per channel
+bgra16 = [] # in memeory `B G R A` order, 16 bits per channel
+argb16 = [] # in memeory `A R G B` order, 16 bits per channel
+abgr16 = [] # in memeory `A B G R` order, 16 bits per channel
+
+# # TODO
+# rgb = []
+# bgr = []
+# rgb565 = []
+# bgr565 = []
+# gray8 = []
+# gray16 = []
+# 1bit = []
+
+IBM_VGA_8x16 = []
+font-unifont = ["dep:libbaremetal-unifont"]
+font-bitmap = ["dep:noto-sans-mono-bitmap"]
+font-abglyph = ["dep:ab_glyph"]
+font-swash = ["dep:swash"]
+font-woff2 = ["dep:woff2"]
+font-truetype = ["font-abglyph", "font-swash", "font-woff2"]
+
+keyboard-scancode = ["pc-keyboard"]                                       # 启用对键盘扫描码的支持，允许直接处理原始扫描码输入
+winit = ["dep:winit"]                                                     # 启用 winit 兼容的事件处理
+softbuffer = ["dep:softbuffer", "dep:raw-window-handle", "winit", "bgra"]
+
+# 默认不暴露 FFI 接口，显式启用后才会提供相关的功能
+ffi = []                                                   # 启用 FFI 相关功能，允许通过 C 接口调用库中的功能
+ffi-std = ["ffi"]                                          # 启用 FFI 且依赖 C 标准库函数而不是让用户提供回调实现
+wasm = ["dep:wasm-bindgen", "dep:wee_alloc", "dep:js-sys"] # 启用 WebAssembly 相关功能
+
+# 转义序列解析相关功能，若不启用则终端不处理转义序列，直接将输入的字符显示在屏幕上
+vte = ["dep:vte"]                 # 支持使用 vte 库进行终端转义序列解析和处理
+ansi-parser = ["dep:ansi-parser"] # 支持使用 ansi-parser 库进行终端转义序列解析和处理
+shitty-parser = []                # 启用一个简单的转义序列解析器，作为 vte 的替代方案，适用于不需要完整 vte 功能的场景
+fast-parser = []                  # 支持一个更简单但更快的转义序列解析器
+
+native = ["dep:libc", "dep:windows"] # 平台相关的终端包装（进程/PTY）
+
+logging = [] # 简单的日志记录功能，用于调试
+
+snapshot = [] # TODO 终端状态快照功能，允许保存终端状态为转义序列
+
+[dependencies]
+core_maths = "0.1.1"
+bitflags = "2.11.1"
+spin = "0.12.0"
+bitvec = { version = "1.0.1", features = ["alloc"], default-features = false }
+pc-keyboard = { version = "0.9.0", optional = true }
+unicode-width = "0.2.2"
+aligned-vec = { version = "0.6.4", features = [], default-features = false }
+base64ct = { version = "1.8.3", features = ["alloc"] }
+libbaremetal-unifont = { version = "0.1.0", optional = true }
+
+# for WASM support
+wasm-bindgen = { version = "0.2.122", optional = true, default-features = false }
+wee_alloc = { version = "0.4.5", optional = true }
+js-sys = { version = "0.3.99", optional = true, default-features = false }
+
+# for native support
+winit = { version = "0.30.13", optional = true, default-features = false }
+softbuffer = { version = "0.4.8", optional = true, default-features = false }
+raw-window-handle = { version = "0.6.2", optional = true, default-features = false }
+
+# ansi escape sequence parsing
+vte = { version = "0.15.0", optional = true, default-features = false, features = [
+    "ansi",
+] }
+ansi-parser = { version = "0.9.1", optional = true, default-features = false }
+
+# font rendering
+ab_glyph = { version = "0.2.32", optional = true, default-features = false, features = [
+    "libm",
+    "variable-fonts",
+] }
+swash = { version = "0.2.7", optional = true, default-features = false, features = [
+    "render",
+    "libm",
+] }
+woff2 = { package = "woff2-no-std", version = "0.3.4", optional = true, default-features = false }
+noto-sans-mono-bitmap = { version = "0.3.2", optional = true, default-features = false, features = [
+    "regular",
+    "bold",
+    "size_20",
+    "unicode-basic-latin",
+    "unicode-specials",
+] }
+
+# 二进制依赖
+
+arboard = { version = "3.6.1", optional = true, default-features = false, features = [
+    "wayland-data-control",
+] }
+
+keycode = { version = "1.0.0", optional = true }
+
+[target.'cfg(unix)'.dependencies.libc]
+version = "0.2.186"
+optional = true
+
+[target.'cfg(windows)'.dependencies.windows]
+version = "0.62.2"
+optional = true
+features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_Console",
+    "Win32_System_Pipes",
+    "Win32_System_SystemServices",
+    "Win32_System_Threading",
+    "Win32_Storage_FileSystem",
+    "Win32_System_WindowsProgramming",
+    "Win32_System_IO",
+]
+
+[target.'cfg(unix)'.dependencies.io-uring]
+optional = true
+version = "0.7.12"
