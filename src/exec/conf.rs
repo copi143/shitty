@@ -6,7 +6,7 @@ pub const DEFAULT_SHELL: &str = "/usr/bin/sh";
 pub const DEFAULT_SHELL: &str = "cmd.exe";
 pub const DEFAULT_ARGS: &[&str] = &[];
 
-pub const FONT_SIZE: i32 = 4;
+pub const FONT_SIZE: i32 = 2;
 
 pub const DISPLAY_SIZE: PhysicalSize<u32> = PhysicalSize::new(1280, 720);
 pub const TOUCHPAD_SCROLL_MULTIPLIER: f32 = 0.25;

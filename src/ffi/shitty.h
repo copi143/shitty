@@ -14,6 +14,10 @@
 #define SHITTY_FEATURE_TRUETYPE 0
 #endif
 
+#ifndef SHITTY_FEATURE_COLOR_FORMATS
+#define SHITTY_FEATURE_COLOR_FORMATS 0
+#endif
+
 #ifndef SHITTY_NO_LIBC
 #define SHITTY_NO_LIBC 0
 #endif
@@ -77,6 +81,14 @@ extern const shitty_usize SHITTY_CURSOR_SHAPE_BEAM;
 extern const shitty_usize SHITTY_CURSOR_SHAPE_HOLLOW_BLOCK;
 /// Invisible cursor.
 extern const shitty_usize SHITTY_CURSOR_SHAPE_HIDDEN;
+
+// ++ shitty::MouseButton ++ //
+
+extern const shitty_usize SHITTY_MOUSE_BUTTON_LEFT;
+extern const shitty_usize SHITTY_MOUSE_BUTTON_RIGHT;
+extern const shitty_usize SHITTY_MOUSE_BUTTON_MIDDLE;
+extern const shitty_usize SHITTY_MOUSE_BUTTON_X1;
+extern const shitty_usize SHITTY_MOUSE_BUTTON_X2;
 
 // $$$$$ ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== $$$$$ //
 // ----- Shitty Requested Callbacks                                  ----- //
@@ -210,6 +222,50 @@ void shitty_set_callback_bell(shitty_terminal terminal,
 void shitty_set_callback_title(shitty_terminal terminal,
                                shitty_callback_title_set callback);
 
+// ++ shitty::ColorFormat ++ //
+
+/// Default color format (platform RGBA).
+extern const shitty_usize SHITTY_COLORFMT_DEFAULT;
+
+#ifdef SHITTY_FEATURE_COLOR_FORMATS
+/// 32-bit RGBA pixel format.
+extern const shitty_usize SHITTY_COLORFMT_RGBA;
+/// 32-bit BGRA pixel format.
+extern const shitty_usize SHITTY_COLORFMT_BGRA;
+/// 32-bit ARGB pixel format.
+extern const shitty_usize SHITTY_COLORFMT_ARGB;
+/// 32-bit ABGR pixel format.
+extern const shitty_usize SHITTY_COLORFMT_ABGR;
+/// 64-bit RGBA pixel format (16 bits per channel).
+extern const shitty_usize SHITTY_COLORFMT_RGBA16;
+/// 64-bit BGRA pixel format (16 bits per channel).
+extern const shitty_usize SHITTY_COLORFMT_BGRA16;
+/// 64-bit ARGB pixel format (16 bits per channel).
+extern const shitty_usize SHITTY_COLORFMT_ARGB16;
+/// 64-bit ABGR pixel format (16 bits per channel).
+extern const shitty_usize SHITTY_COLORFMT_ABGR16;
+/// 24-bit RGB pixel format.
+extern const shitty_usize SHITTY_COLORFMT_RGB;
+/// 24-bit BGR pixel format.
+extern const shitty_usize SHITTY_COLORFMT_BGR;
+/// 128-bit RGBA pixel format (f32 per channel).
+extern const shitty_usize SHITTY_COLORFMT_RGBA_F32;
+/// 128-bit BGRA pixel format (f32 per channel).
+extern const shitty_usize SHITTY_COLORFMT_BGRA_F32;
+/// 128-bit ARGB pixel format (f32 per channel).
+extern const shitty_usize SHITTY_COLORFMT_ARGB_F32;
+/// 128-bit ABGR pixel format (f32 per channel).
+extern const shitty_usize SHITTY_COLORFMT_ABGR_F32;
+/// 96-bit RGB pixel format (f32 per channel).
+extern const shitty_usize SHITTY_COLORFMT_RGB_F32;
+/// 96-bit BGR pixel format (f32 per channel).
+extern const shitty_usize SHITTY_COLORFMT_BGR_F32;
+/// 16-bit RGB pixel format (5-6-5).
+extern const shitty_usize SHITTY_COLORFMT_RGB565;
+/// 16-bit BGR pixel format (5-6-5).
+extern const shitty_usize SHITTY_COLORFMT_BGR565;
+#endif
+
 // $$$$$ ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== $$$$$ //
 
 /**
@@ -220,16 +276,30 @@ void shitty_set_callback_title(shitty_terminal terminal,
  *\param height   The height of the output buffer.
  *\param pitch    The pitch (stride) of the output buffer.
  *\param buf      A pointer to the output buffer.
+ *\param time_ms  The current time in milliseconds.
+ *\param color    A `ColorFormat` discriminant (see `SHITTY_COLORFMT_*`
+ * constants).
  */
 void shitty_flush(shitty_terminal terminal, shitty_usize width,
                   shitty_usize height, shitty_usize pitch, void *buf,
-                  shitty_u64 time_ms);
+                  shitty_u64 time_ms, shitty_usize color);
 
 void shitty_process(shitty_terminal terminal, const shitty_u8 *input,
                     shitty_usize len);
 
 void shitty_input(shitty_terminal terminal, const shitty_u8 *input,
                   shitty_usize len);
+
+void shitty_handle_mouse_move(shitty_terminal terminal, shitty_i32 x,
+                              shitty_i32 y);
+void shitty_handle_mouse_press(shitty_terminal terminal, shitty_usize button);
+void shitty_handle_mouse_release(shitty_terminal terminal, shitty_usize button);
+void shitty_handle_mouse_scroll(shitty_terminal terminal, shitty_i32 lines);
+void shitty_handle_mouse_scroll_xy(shitty_terminal terminal, shitty_i32 dx,
+                                   shitty_i32 dy);
+void shitty_handle_modifiers(shitty_terminal terminal, shitty_u8 modifiers);
+void shitty_handle_mouse_leave(shitty_terminal terminal);
+void shitty_handle_focus(shitty_terminal terminal, shitty_bool gained);
 
 #ifdef SHITTY_FEATURE_KEYBOARD_SCANCODE
 /**

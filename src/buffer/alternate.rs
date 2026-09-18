@@ -42,6 +42,11 @@ pub struct Alternate {
 const _: usize = core::mem::size_of::<Alternate>();
 
 impl Alternate {
+    /// 创建一个未初始化的备用缓冲区。
+    /// 使用前必须先调用 [`init`](Self::init)。
+    ///
+    /// Create an uninitialized alternate buffer.
+    /// [`init`](Self::init) must be called before use.
     pub fn new() -> Self {
         Self {
             buffer: avec![],
@@ -59,6 +64,9 @@ impl Alternate {
         }
     }
 
+    /// 反初始化备用缓冲区，释放所有资源。
+    ///
+    /// Deinitialize the alternate buffer, releasing all resources.
     pub fn deinit(&mut self) {
         self.buffer.clear();
         self.line_dirty.clear();
@@ -74,6 +82,11 @@ impl Alternate {
         self.saved_cursor_pos = CursorPosition::default();
     }
 
+    /// 初始化备用缓冲区，分配指定大小的环形缓冲。
+    /// - `fill`: 用于填充新行的字符
+    ///
+    /// Initialize the alternate buffer with the specified size as a ring buffer.
+    /// - `fill`: The character used to fill new lines
     pub fn init(&mut self, width: u32, height: u32, fill: Char) {
         debug_assert!(self.buffer.is_empty(), "Alternate buffer already initialized");
         self.begin = 0;
@@ -168,8 +181,8 @@ impl Buffer for Alternate {
     }
 
     fn view(&mut self, y: u32) {
-        // Do nothing, alternate buffer does not support history.
-        debug_assert!(y == 0, "Alternate buffer does not support viewing history");
+        // Alternate buffer does not support history.
+        assert!(y == 0, "Alternate buffer does not support viewing history");
     }
 
     #[inline(always)]

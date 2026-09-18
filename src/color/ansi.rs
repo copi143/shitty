@@ -3,27 +3,39 @@ use core::fmt::Display;
 #[cfg(feature = "vte")]
 pub use vte::ansi::{Color as VteColor, NamedColor as VteNamedColor, Rgb as VteRgb};
 
+/// ANSI 颜色值。可以是命名颜色、RGB 指定色或 256 色调色板索引。
+///
+/// ANSI color value. Can be a named color, an RGB spec, or a 256-color palette index.
 #[repr(align(4))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AnsiColor {
+    /// 命名颜色（16 ANSI 色 + 特殊色）。
+    ///
+    /// Named color (16 ANSI colors + special colors).
     Named(AnsiNamedColor),
+    /// 24 位 RGB 指定色。
+    ///
+    /// 24-bit RGB specified color.
     Spec(AnsiRgb),
+    /// 256 色调色板索引。
+    ///
+    /// 256-color palette index.
     Indexed(u8),
 }
 
-impl const From<AnsiNamedColor> for AnsiColor {
+const impl From<AnsiNamedColor> for AnsiColor {
     fn from(color: AnsiNamedColor) -> Self {
         AnsiColor::Named(color)
     }
 }
 
-impl const From<AnsiRgb> for AnsiColor {
+const impl From<AnsiRgb> for AnsiColor {
     fn from(rgb: AnsiRgb) -> Self {
         AnsiColor::Spec(rgb)
     }
 }
 
-impl const From<u8> for AnsiColor {
+const impl From<u8> for AnsiColor {
     fn from(index: u8) -> Self {
         AnsiColor::Indexed(index)
     }
@@ -42,7 +54,7 @@ impl Display for AnsiColor {
 }
 
 #[cfg(feature = "vte")]
-impl const From<AnsiColor> for VteColor {
+const impl From<AnsiColor> for VteColor {
     fn from(color: AnsiColor) -> Self {
         match color {
             AnsiColor::Named(named) => VteColor::Named(named.into()),
@@ -53,7 +65,7 @@ impl const From<AnsiColor> for VteColor {
 }
 
 #[cfg(feature = "vte")]
-impl const From<VteColor> for AnsiColor {
+const impl From<VteColor> for AnsiColor {
     fn from(color: VteColor) -> Self {
         match color {
             VteColor::Named(named) => AnsiColor::Named(named.into()),
@@ -132,216 +144,173 @@ enum_map! {
     VteNamedColor,
 }
 
-#[rustfmt::skip]
+/// Intensity ladder: normal → bright → (no brighter), dim → normal → bright.
+const INTENSITY_NORMAL: u8 = 0;
+const INTENSITY_BRIGHT: u8 = 1;
+const INTENSITY_DIM: u8 = 2;
+
+/// Index of the special foreground family in [`AnsiNamedColor::family`].
+const FAMILY_FOREGROUND: u8 = 8;
+
 impl AnsiNamedColor {
+    /// `(family, intensity)` for colors that participate in the bright/dim ladder.
+    ///
+    /// - `family` 0..=7: the 8 ANSI colors; 8: Foreground
+    /// - `intensity`: 0 normal, 1 bright, 2 dim
+    ///
+    /// Background / Cursor return `None`.
+    const fn family(self) -> Option<(u8, u8)> {
+        match self as usize {
+            n @ 0..=7 => Some((n as u8, INTENSITY_NORMAL)),
+            n @ 8..=15 => Some(((n - 8) as u8, INTENSITY_BRIGHT)),
+            n @ 259..=266 => Some(((n - 259) as u8, INTENSITY_DIM)),
+            x if x == Self::Foreground as usize => Some((FAMILY_FOREGROUND, INTENSITY_NORMAL)),
+            x if x == Self::BrightForeground as usize => Some((FAMILY_FOREGROUND, INTENSITY_BRIGHT)),
+            x if x == Self::DimForeground as usize => Some((FAMILY_FOREGROUND, INTENSITY_DIM)),
+            _ => None,
+        }
+    }
+
+    const fn from_family(family: u8, intensity: u8) -> Self {
+        if family == FAMILY_FOREGROUND {
+            return match intensity {
+                INTENSITY_BRIGHT => Self::BrightForeground,
+                INTENSITY_DIM => Self::DimForeground,
+                _ => Self::Foreground,
+            };
+        }
+        let n = match intensity {
+            INTENSITY_BRIGHT => 8 + family as usize,
+            INTENSITY_DIM => 259 + family as usize,
+            _ => family as usize,
+        };
+        match Self::try_from(n) {
+            Ok(c) => c,
+            Err(()) => Self::Black,
+        }
+    }
+
+    const fn with_intensity(self, intensity: u8) -> Self {
+        match self.family() {
+            Some((family, _)) => Self::from_family(family, intensity),
+            None => self,
+        }
+    }
+
+    /// 从前景色 ANSI 代码解析为命名颜色。
+    ///
+    /// Parse an ANSI foreground color code into a named color.
     pub const fn from_named_fg(code: u8) -> Option<Self> {
-        Some(match code {
-            30 => Self::Black,
-            31 => Self::Red,
-            32 => Self::Green,
-            33 => Self::Yellow,
-            34 => Self::Blue,
-            35 => Self::Magenta,
-            36 => Self::Cyan,
-            37 => Self::White,
-            90 => Self::BrightBlack,
-            91 => Self::BrightRed,
-            92 => Self::BrightGreen,
-            93 => Self::BrightYellow,
-            94 => Self::BrightBlue,
-            95 => Self::BrightMagenta,
-            96 => Self::BrightCyan,
-            97 => Self::BrightWhite,
+        let idx = match code {
+            30..=37 => (code - 30) as usize,
+            90..=97 => (code - 90 + 8) as usize,
             _ => return None,
-        })
+        };
+        match Self::try_from(idx) {
+            Ok(c) => Some(c),
+            Err(()) => None,
+        }
     }
 
+    /// 将命名颜色转换为前景色 ANSI 代码。
+    ///
+    /// Convert a named color to an ANSI foreground color code.
     pub const fn to_named_fg(self) -> Option<u8> {
-        Some(match self {
-            Self::Black => 30,
-            Self::Red => 31,
-            Self::Green => 32,
-            Self::Yellow => 33,
-            Self::Blue => 34,
-            Self::Magenta => 35,
-            Self::Cyan => 36,
-            Self::White => 37,
-            Self::BrightBlack => 90,
-            Self::BrightRed => 91,
-            Self::BrightGreen => 92,
-            Self::BrightYellow => 93,
-            Self::BrightBlue => 94,
-            Self::BrightMagenta => 95,
-            Self::BrightCyan => 96,
-            Self::BrightWhite => 97,
-            _ => return None,
-        })
+        match self as usize {
+            n @ 0..=7 => Some(30 + n as u8),
+            n @ 8..=15 => Some(90 + (n as u8 - 8)),
+            _ => None,
+        }
     }
 
+    /// 从背景色 ANSI 代码解析为命名颜色。
+    ///
+    /// Parse an ANSI background color code into a named color.
     pub const fn from_named_bg(code: u8) -> Option<Self> {
-        Some(match code {
-            40 => Self::Black,
-            41 => Self::Red,
-            42 => Self::Green,
-            43 => Self::Yellow,
-            44 => Self::Blue,
-            45 => Self::Magenta,
-            46 => Self::Cyan,
-            47 => Self::White,
-            100 => Self::BrightBlack,
-            101 => Self::BrightRed,
-            102 => Self::BrightGreen,
-            103 => Self::BrightYellow,
-            104 => Self::BrightBlue,
-            105 => Self::BrightMagenta,
-            106 => Self::BrightCyan,
-            107 => Self::BrightWhite,
-            _ => return None,
-        })
+        // BG codes are FG codes + 10 (40..=47 / 100..=107).
+        Self::from_named_fg(code.wrapping_sub(10))
     }
 
+    /// 将命名颜色转换为背景色 ANSI 代码。
+    ///
+    /// Convert a named color to an ANSI background color code.
     pub const fn to_named_bg(self) -> Option<u8> {
-        Some(match self {
-            Self::Black => 40,
-            Self::Red => 41,
-            Self::Green => 42,
-            Self::Yellow => 43,
-            Self::Blue => 44,
-            Self::Magenta => 45,
-            Self::Cyan => 46,
-            Self::White => 47,
-            Self::BrightBlack => 100,
-            Self::BrightRed => 101,
-            Self::BrightGreen => 102,
-            Self::BrightYellow => 103,
-            Self::BrightBlue => 104,
-            Self::BrightMagenta => 105,
-            Self::BrightCyan => 106,
-            Self::BrightWhite => 107,
-            _ => return None,
-        })
+        match self.to_named_fg() {
+            Some(c) => Some(c + 10),
+            None => None,
+        }
     }
 
+    /// 检查是否为普通（非亮色/非暗色）颜色。
+    ///
+    /// Check if this is a normal (not bright, not dim) color.
     pub const fn is_normal(self) -> bool {
-        use AnsiNamedColor::*;
-        matches!(self, Black | Red | Green | Yellow | Blue | Magenta | Cyan | White | Foreground | Background | Cursor)
+        matches!(self as usize, 0..=7 | 256..=258)
     }
 
+    /// 检查是否为亮色变体。
+    ///
+    /// Check if this is a bright variant.
     pub const fn is_bright(self) -> bool {
-        use AnsiNamedColor::*;
-        matches!(self, BrightBlack | BrightRed | BrightGreen | BrightYellow | BrightBlue | BrightMagenta | BrightCyan | BrightWhite | BrightForeground)
+        matches!(self as usize, 8..=15 | 267)
     }
 
+    /// 检查是否为暗色变体。
+    ///
+    /// Check if this is a dim variant.
     pub const fn is_dim(self) -> bool {
-        use AnsiNamedColor::*;
-        matches!(self, DimBlack | DimRed | DimGreen | DimYellow | DimBlue | DimMagenta | DimCyan | DimWhite | DimForeground)
+        matches!(self as usize, 259..=266 | 268)
     }
 
+    /// 获取更亮的变体（normal → bright，dim → normal，bright → bright）。
+    ///
+    /// Get the brighter variant (normal → bright, dim → normal, bright → bright).
     pub const fn brighter(self) -> Self {
-        use AnsiNamedColor::*;
-        match self {
-            Black => BrightBlack,
-            Red => BrightRed,
-            Green => BrightGreen,
-            Yellow => BrightYellow,
-            Blue => BrightBlue,
-            Magenta => BrightMagenta,
-            Cyan => BrightCyan,
-            White => BrightWhite,
-            Foreground => BrightForeground,
-            DimBlack => Black,
-            DimRed => Red,
-            DimGreen => Green,
-            DimYellow => Yellow,
-            DimBlue => Blue,
-            DimMagenta => Magenta,
-            DimCyan => Cyan,
-            DimWhite => White,
-            DimForeground => Foreground,
-            other => other,
+        match self.family() {
+            Some((family, INTENSITY_NORMAL)) => Self::from_family(family, INTENSITY_BRIGHT),
+            Some((family, INTENSITY_DIM)) => Self::from_family(family, INTENSITY_NORMAL),
+            _ => self,
         }
     }
 
+    /// 获取更暗的变体（normal → dim，bright → normal，dim → dim）。
+    ///
+    /// Get the dimmer variant (normal → dim, bright → normal, dim → dim).
     pub const fn dimmer(self) -> Self {
-        use AnsiNamedColor::*;
-        match self {
-            Black => DimBlack,
-            Red => DimRed,
-            Green => DimGreen,
-            Yellow => DimYellow,
-            Blue => DimBlue,
-            Magenta => DimMagenta,
-            Cyan => DimCyan,
-            White => DimWhite,
-            Foreground => DimForeground,
-            BrightBlack => Black,
-            BrightRed => Red,
-            BrightGreen => Green,
-            BrightYellow => Yellow,
-            BrightBlue => Blue,
-            BrightMagenta => Magenta,
-            BrightCyan => Cyan,
-            BrightWhite => White,
-            BrightForeground => Foreground,
-            other => other,
+        match self.family() {
+            Some((family, INTENSITY_NORMAL)) => Self::from_family(family, INTENSITY_DIM),
+            Some((family, INTENSITY_BRIGHT)) => Self::from_family(family, INTENSITY_NORMAL),
+            _ => self,
         }
     }
 
+    /// 标准化为普通变体（bright/dim → normal）。
+    ///
+    /// Normalize to the normal variant (bright/dim → normal).
     pub const fn normal(self) -> Self {
-        use AnsiNamedColor::*;
-        match self {
-            BrightBlack | DimBlack => Black,
-            BrightRed | DimRed => Red,
-            BrightGreen | DimGreen => Green,
-            BrightYellow | DimYellow => Yellow,
-            BrightBlue | DimBlue => Blue,
-            BrightMagenta | DimMagenta => Magenta,
-            BrightCyan | DimCyan => Cyan,
-            BrightWhite | DimWhite => White,
-            BrightForeground | DimForeground => Foreground,
-            other => other,
-        }
+        self.with_intensity(INTENSITY_NORMAL)
     }
 
+    /// 强制转换为亮色变体。
+    ///
+    /// Force conversion to the bright variant.
     pub const fn bright(self) -> Self {
-        use AnsiNamedColor::*;
-        match self {
-            Black | DimBlack => BrightBlack,
-            Red | DimRed => BrightRed,
-            Green | DimGreen => BrightGreen,
-            Yellow | DimYellow => BrightYellow,
-            Blue | DimBlue => BrightBlue,
-            Magenta | DimMagenta => BrightMagenta,
-            Cyan | DimCyan => BrightCyan,
-            White | DimWhite => BrightWhite,
-            Foreground | DimForeground => BrightForeground,
-            other => other,
-        }
+        self.with_intensity(INTENSITY_BRIGHT)
     }
 
+    /// 强制转换为暗色变体。
+    ///
+    /// Force conversion to the dim variant.
     pub const fn dim(self) -> Self {
-        use AnsiNamedColor::*;
-        match self {
-            Black | BrightBlack => DimBlack,
-            Red | BrightRed => DimRed,
-            Green | BrightGreen => DimGreen,
-            Yellow | BrightYellow => DimYellow,
-            Blue | BrightBlue => DimBlue,
-            Magenta | BrightMagenta => DimMagenta,
-            Cyan | BrightCyan => DimCyan,
-            White | BrightWhite => DimWhite,
-            Foreground | BrightForeground => DimForeground,
-            other => other,
-        }
+        self.with_intensity(INTENSITY_DIM)
     }
 }
 
 impl Display for AnsiNamedColor {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         // `f.alternate()` selects background when true, foreground when false.
-        // Handle special cases explicitly.
         match self {
-            AnsiNamedColor::Cursor => return Ok(()), // No standard SGR code for cursor color; skip.
+            AnsiNamedColor::Cursor => return Ok(()),
             AnsiNamedColor::BrightForeground => return write!(f, "\x1b[1m"),
             AnsiNamedColor::DimForeground => return write!(f, "\x1b[2m"),
             AnsiNamedColor::Foreground => {
@@ -351,26 +320,11 @@ impl Display for AnsiNamedColor {
             _ => {}
         }
 
-        // Map dim variants to their base (non-dim) color so we can reuse the
-        // named FG/BG codes and prefix with the dim SGR when needed.
         let is_dim = self.is_dim();
-
-        let base = match self {
-            AnsiNamedColor::DimBlack => AnsiNamedColor::Black,
-            AnsiNamedColor::DimRed => AnsiNamedColor::Red,
-            AnsiNamedColor::DimGreen => AnsiNamedColor::Green,
-            AnsiNamedColor::DimYellow => AnsiNamedColor::Yellow,
-            AnsiNamedColor::DimBlue => AnsiNamedColor::Blue,
-            AnsiNamedColor::DimMagenta => AnsiNamedColor::Magenta,
-            AnsiNamedColor::DimCyan => AnsiNamedColor::Cyan,
-            AnsiNamedColor::DimWhite => AnsiNamedColor::White,
-            other => *other,
-        };
-
+        let base = self.normal();
         if let Some(code) = if f.alternate() { base.to_named_bg() } else { base.to_named_fg() } {
             if is_dim { write!(f, "\x1b[2;{}m", code) } else { write!(f, "\x1b[{}m", code) }
         } else {
-            // Fallback: should not happen for known named colors; keep no-op.
             Ok(())
         }
     }
@@ -378,10 +332,22 @@ impl Display for AnsiNamedColor {
 
 // $$$$$ ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== $$$$$ //
 
+/// 24 位 RGB 颜色值（用于 ANSI 转义序列中的 `\x1b[38;2;R;G;Bm`）。
+///
+/// 24-bit RGB color value (used in ANSI escape sequences like `\x1b[38;2;R;G;Bm`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AnsiRgb {
+    /// 红色分量 (0-255)。
+    ///
+    /// Red component (0-255).
     pub r: u8,
+    /// 绿色分量 (0-255)。
+    ///
+    /// Green component (0-255).
     pub g: u8,
+    /// 蓝色分量 (0-255)。
+    ///
+    /// Blue component (0-255).
     pub b: u8,
 }
 
@@ -396,7 +362,7 @@ impl Display for AnsiRgb {
 }
 
 #[cfg(feature = "vte")]
-impl const From<AnsiRgb> for VteRgb {
+const impl From<AnsiRgb> for VteRgb {
     fn from(rgb: AnsiRgb) -> Self {
         VteRgb {
             r: rgb.r,
@@ -407,7 +373,7 @@ impl const From<AnsiRgb> for VteRgb {
 }
 
 #[cfg(feature = "vte")]
-impl const From<VteRgb> for AnsiRgb {
+const impl From<VteRgb> for AnsiRgb {
     fn from(rgb: VteRgb) -> Self {
         AnsiRgb {
             r: rgb.r,

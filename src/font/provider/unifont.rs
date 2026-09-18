@@ -3,6 +3,15 @@ use baremetal_unifont::{char_width, get_glyph};
 
 use super::super::{FontGlyph, FontGlyphBuffer, FontRenderer};
 
+/// GNU Unifont 位图字体渲染器。支持所有 Unicode BMP（基本多文种平面）字符。
+/// - 字符宽度：8 或 16 像素（取决于字符宽度）
+/// - 行高：16 像素
+/// - no_std 兼容
+///
+/// GNU Unifont bitmap font renderer. Supports all Unicode BMP characters.
+/// - Character width: 8 or 16 pixels (depends on character)
+/// - Line height: 16 pixels
+/// - no_std compatible
 pub struct Unifont {
     buf: [u8; 32],
 }
@@ -12,7 +21,7 @@ assert_send_sync!(Unifont);
 impl Unifont {
     /// Create a new `Unifont` instance.
     /// - Returns a boxed `Unifont` that implements the `FontRenderer` trait.
-    #[allow(clippy::new_ret_no_self)]
+    #[expect(clippy::new_ret_no_self)]
     pub fn new() -> Box<dyn FontRenderer> {
         Box::new(Self { buf: [0; 32] })
     }

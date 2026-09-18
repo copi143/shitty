@@ -90,7 +90,7 @@ macro_rules! enum_map {
                 $variant = $value,
             )*
         }
-        impl const From<$name> for $ty {
+        const impl From<$name> for $ty {
             fn from(value: $name) -> Self {
                 match value {
                     $(
@@ -99,7 +99,7 @@ macro_rules! enum_map {
                 }
             }
         }
-        impl const TryFrom<$ty> for $name {
+        const impl TryFrom<$ty> for $name {
             type Error = ();
             fn try_from(value: $ty) -> Result<Self, Self::Error> {
                 match value {
@@ -141,7 +141,7 @@ macro_rules! enum_map {
 macro_rules! bidirectional_from {
     ($(#[$meta:meta])* $a:path = $b:path { $($variant:ident),* $(,)? }) => {
         $(#[$meta])*
-        impl const From<$a> for $b {
+        const impl From<$a> for $b {
             fn from(value: $a) -> Self {
                 match value {
                     $( <$a>::$variant => <$b>::$variant, )*
@@ -149,7 +149,7 @@ macro_rules! bidirectional_from {
             }
         }
         $(#[$meta])*
-        impl const From<$b> for $a {
+        const impl From<$b> for $a {
             fn from(value: $b) -> Self {
                 match value {
                     $( <$b>::$variant => <$a>::$variant, )*

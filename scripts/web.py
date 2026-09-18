@@ -9,8 +9,8 @@ os.chdir(CWD)
 app = Flask(__name__, root_path=CWD)
 
 
-@app.route('/', defaults={'filename': ''})
-@app.route('/<path:filename>')
+@app.route('/', defaults={'filename': ''}, methods=['GET'])
+@app.route('/<path:filename>', methods=['GET'])
 def serve_file(filename):
   if filename == '':
     filename = 'index.html'

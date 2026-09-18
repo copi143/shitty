@@ -301,9 +301,12 @@ impl Processor {
                     match mode {
                         1 => {
                             terminal.mode.insert(TerminalMode::APP_CURSOR);
-                            terminal.keyboard.set_app_cursor(true);
+                            terminal.keyboard.app_cursor_mode = true;
                         }
                         7 => terminal.set_auto_wrap(AutoWrap::Disabled),
+                        9 | 1000 | 1001 | 1002 | 1003 | 1004 | 1005 | 1006 | 1007 | 1015 | 1016 => {
+                            terminal.pointer.set_dec_mode(*mode, true);
+                        }
                         25 => terminal.buffer.show_cursor(),
                         1049 => terminal.enter_alternate(),
                         2004 => terminal.mode.insert(TerminalMode::BRACKETED_PASTE),
@@ -316,14 +319,22 @@ impl Processor {
                     match mode {
                         1 => {
                             terminal.mode.remove(TerminalMode::APP_CURSOR);
-                            terminal.keyboard.set_app_cursor(false);
+                            terminal.keyboard.app_cursor_mode = false;
                         }
                         7 => terminal.set_auto_wrap(AutoWrap::Delayed),
+                        9 | 1000 | 1001 | 1002 | 1003 | 1004 | 1005 | 1006 | 1007 | 1015 | 1016 => {
+                            terminal.pointer.set_dec_mode(*mode, false);
+                        }
                         25 => terminal.buffer.hide_cursor(),
                         1049 => terminal.exit_alternate(),
                         2004 => terminal.mode.remove(TerminalMode::BRACKETED_PASTE),
                         _ => {}
                     }
+                }
+            }
+            'p' => {
+                for mode in self.csi_params() {
+                    terminal.report_dec_private(*mode);
                 }
             }
             _ => {}

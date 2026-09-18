@@ -63,8 +63,12 @@ pub trait Buffer {
     fn snapshot(&self, with_history: bool) -> String;
 
     /// 滚动但是不清理新增的行
-    /// 新增的行中可能有脏数据
-    /// 在 resize 的时候调用下，反正脏数据都会被切除
+    /// - 新增的行中可能有脏数据
+    /// - 在 resize 的时候调用，反正脏数据都会被切除
+    ///
+    /// Scroll the buffer without clearing the newly added lines.
+    /// - The newly added lines may contain dirty data.
+    /// - Called during resize, where dirty data will be trimmed anyway.
     ///
     /// TODO ***这不应该是公开API***
     fn scroll_without_clear(&mut self, count: i32);

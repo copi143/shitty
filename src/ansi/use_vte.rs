@@ -385,35 +385,30 @@ impl Handler for TerminalWrapper<'_> {
         let mode = match mode {
             PrivateMode::Named(mode) => mode,
             PrivateMode::Unknown(mode) => {
-                debug!("Ignoring unknown mode {} in set_private_mode", mode);
+                if !matches!(mode, 9 | 1001 | 1015 | 1016) {
+                    debug!("Ignoring unknown mode {} in set_private_mode", mode);
+                }
+                self.pointer.set_dec_mode(mode as u16, true);
                 return;
             }
         };
-
-        macro_rules! pointer {
-            ($name:ident) => {{
-                self.pointer.$name = true;
-                self.pointer.calc_mode();
-            }};
-        }
 
         match mode {
             NamedPrivateMode::SwapScreenAndSetRestoreCursor => self.enter_alternate(),
             NamedPrivateMode::ShowCursor => self.buffer.show_cursor(),
             NamedPrivateMode::CursorKeys => {
                 self.mode.insert(TerminalMode::APP_CURSOR);
-                self.keyboard.set_app_cursor(true);
+                self.keyboard.app_cursor_mode = true;
             }
             NamedPrivateMode::LineWrap => self.set_auto_wrap(AutoWrap::Delayed),
             NamedPrivateMode::BracketedPaste => self.mode.insert(TerminalMode::BRACKETED_PASTE),
-            NamedPrivateMode::ReportMouseClicks => pointer!(enabled_1000),
-            NamedPrivateMode::ReportCellMouseMotion => pointer!(enabled_1002),
-            NamedPrivateMode::ReportAllMouseMotion => pointer!(enabled_1003),
-            NamedPrivateMode::ReportFocusInOut => {
-                // TODO
-            }
-            NamedPrivateMode::Utf8Mouse => pointer!(enabled_1005),
-            NamedPrivateMode::SgrMouse => pointer!(enabled_1006),
+            NamedPrivateMode::ReportMouseClicks => self.pointer.set_dec_mode(1000, true),
+            NamedPrivateMode::ReportCellMouseMotion => self.pointer.set_dec_mode(1002, true),
+            NamedPrivateMode::ReportAllMouseMotion => self.pointer.set_dec_mode(1003, true),
+            NamedPrivateMode::ReportFocusInOut => self.pointer.set_dec_mode(1004, true),
+            NamedPrivateMode::Utf8Mouse => self.pointer.set_dec_mode(1005, true),
+            NamedPrivateMode::SgrMouse => self.pointer.set_dec_mode(1006, true),
+            NamedPrivateMode::AlternateScroll => self.pointer.set_dec_mode(1007, true),
             _ => debug!("Unhandled set mode: {:?}", mode),
         }
     }
@@ -422,41 +417,40 @@ impl Handler for TerminalWrapper<'_> {
         let mode = match mode {
             PrivateMode::Named(mode) => mode,
             PrivateMode::Unknown(mode) => {
-                debug!("Ignoring unknown mode {} in unset_private_mode", mode);
+                if !matches!(mode, 9 | 1001 | 1015 | 1016) {
+                    debug!("Ignoring unknown mode {} in unset_private_mode", mode);
+                }
+                self.pointer.set_dec_mode(mode as u16, false);
                 return;
             }
         };
-
-        macro_rules! pointer {
-            ($name:ident) => {{
-                self.pointer.$name = false;
-                self.pointer.calc_mode();
-            }};
-        }
 
         match mode {
             NamedPrivateMode::SwapScreenAndSetRestoreCursor => self.exit_alternate(),
             NamedPrivateMode::ShowCursor => self.buffer.hide_cursor(),
             NamedPrivateMode::CursorKeys => {
                 self.mode.remove(TerminalMode::APP_CURSOR);
-                self.keyboard.set_app_cursor(false);
+                self.keyboard.app_cursor_mode = false;
             }
             NamedPrivateMode::LineWrap => self.set_auto_wrap(AutoWrap::Disabled),
             NamedPrivateMode::BracketedPaste => self.mode.remove(TerminalMode::BRACKETED_PASTE),
-            NamedPrivateMode::ReportMouseClicks => pointer!(enabled_1000),
-            NamedPrivateMode::ReportCellMouseMotion => pointer!(enabled_1002),
-            NamedPrivateMode::ReportAllMouseMotion => pointer!(enabled_1003),
-            NamedPrivateMode::ReportFocusInOut => {
-                // TODO
-            }
-            NamedPrivateMode::Utf8Mouse => pointer!(enabled_1005),
-            NamedPrivateMode::SgrMouse => pointer!(enabled_1006),
+            NamedPrivateMode::ReportMouseClicks => self.pointer.set_dec_mode(1000, false),
+            NamedPrivateMode::ReportCellMouseMotion => self.pointer.set_dec_mode(1002, false),
+            NamedPrivateMode::ReportAllMouseMotion => self.pointer.set_dec_mode(1003, false),
+            NamedPrivateMode::ReportFocusInOut => self.pointer.set_dec_mode(1004, false),
+            NamedPrivateMode::Utf8Mouse => self.pointer.set_dec_mode(1005, false),
+            NamedPrivateMode::SgrMouse => self.pointer.set_dec_mode(1006, false),
+            NamedPrivateMode::AlternateScroll => self.pointer.set_dec_mode(1007, false),
             _ => debug!("Unhandled unset mode: {:?}", mode),
         }
     }
 
     fn report_private_mode(&mut self, mode: PrivateMode) {
-        debug!("Unhandled report private mode: {:?}", mode);
+        let code = match mode {
+            PrivateMode::Named(mode) => mode as u16,
+            PrivateMode::Unknown(mode) => mode as u16,
+        };
+        self.report_dec_private(code);
     }
 
     fn set_scrolling_region(&mut self, top: usize, bottom: Option<usize>) {
@@ -532,7 +526,8 @@ impl Handler for TerminalWrapper<'_> {
         self.terminal.user_input(result.as_bytes());
     }
 
-    // TODO test
+    /// DECALN — Fill the screen with 'E' characters.
+    /// Used by the terminal to test the display (hardware test pattern).
     fn decaln(&mut self) {
         info!("DECALN - Fill screen with E");
         let term = &mut *self.terminal;

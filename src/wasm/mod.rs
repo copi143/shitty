@@ -60,6 +60,32 @@ wasm_consts! {
     SHITTY_AUTOWRAP_DISABLED => AutoWrap::Disabled,
     SHITTY_AUTOWRAP_IMMEDIATE => AutoWrap::Immediate,
     SHITTY_AUTOWRAP_DELAYED => AutoWrap::Delayed,
+
+    // ++ shitty::ColorFormat ++ //
+    SHITTY_COLORFMT_DEFAULT => ColorFormat::Default,
+}
+
+#[cfg(feature = "color-formats")]
+wasm_consts! {
+    // ++ shitty::ColorFormat ++ //
+    SHITTY_COLORFMT_RGBA => ColorFormat::RGBA,
+    SHITTY_COLORFMT_BGRA => ColorFormat::BGRA,
+    SHITTY_COLORFMT_ARGB => ColorFormat::ARGB,
+    SHITTY_COLORFMT_ABGR => ColorFormat::ABGR,
+    SHITTY_COLORFMT_RGBA16 => ColorFormat::RGBA16,
+    SHITTY_COLORFMT_BGRA16 => ColorFormat::BGRA16,
+    SHITTY_COLORFMT_ARGB16 => ColorFormat::ARGB16,
+    SHITTY_COLORFMT_ABGR16 => ColorFormat::ABGR16,
+    SHITTY_COLORFMT_RGB => ColorFormat::RGB,
+    SHITTY_COLORFMT_BGR => ColorFormat::BGR,
+    SHITTY_COLORFMT_RGBA_F32 => ColorFormat::RGBA_F32,
+    SHITTY_COLORFMT_BGRA_F32 => ColorFormat::BGRA_F32,
+    SHITTY_COLORFMT_ARGB_F32 => ColorFormat::ARGB_F32,
+    SHITTY_COLORFMT_ABGR_F32 => ColorFormat::ABGR_F32,
+    SHITTY_COLORFMT_RGB_F32 => ColorFormat::RGB_F32,
+    SHITTY_COLORFMT_BGR_F32 => ColorFormat::BGR_F32,
+    SHITTY_COLORFMT_RGB565 => ColorFormat::RGB565,
+    SHITTY_COLORFMT_BGR565 => ColorFormat::BGR565,
 }
 
 // $$$$$ ===== ===== ===== ===== ===== ===== ===== ===== ===== ===== $$$$$ //
@@ -98,10 +124,11 @@ pub fn shitty_dealloc_string_buffer(ptr: *mut c_void, len: usize) {
 /// > See [`Terminal::new`] for more details.
 #[wasm_bindgen]
 pub fn shitty_new(width: u32, height: u32, bufmode: usize, font: *mut c_void) -> *mut Terminal {
-    if width == 0 || height == 0 {
+    if font.is_null() || width == 0 || height == 0 {
         return core::ptr::null_mut();
     }
     let Ok(bufmode) = BufMode::try_from(bufmode) else {
+        drop(unsafe { Box::from_raw(font as *mut Box<dyn FontRenderer>) });
         return core::ptr::null_mut();
     };
     let font = *unsafe { Box::from_raw(font as *mut Box<dyn FontRenderer>) };
@@ -161,6 +188,7 @@ pub fn shitty_cols(terminal: *mut Terminal) -> u32 {
 }
 
 /// Flush the terminal's output.
+/// - `color`: a [`ColorFormat`] discriminant value (see `SHITTY_COLORFMT_*` constants).
 /// > See [`Terminal::flush`] for more details.
 #[wasm_bindgen]
 pub fn shitty_flush(
@@ -170,13 +198,16 @@ pub fn shitty_flush(
     pitch: usize,
     buf: *mut c_void,
     time_ms: u64,
+    color: usize,
 ) {
     if terminal.is_null() {
         return;
     }
+    let Ok(color) = ColorFormat::try_from(color) else {
+        return;
+    };
     unsafe {
-        let mut drawable = Drawable::from_raw_parts(buf as *mut Color, width, height, pitch);
-        (*terminal).flush(&mut drawable, Duration::from_millis(time_ms));
+        color.dispatch_flush(&mut *terminal, buf, width, height, pitch, Duration::from_millis(time_ms));
     }
 }
 
@@ -219,6 +250,94 @@ pub fn shitty_input(terminal: *mut Terminal, input: *const u8, len: usize) {
     unsafe {
         let text = core::slice::from_raw_parts(input, len);
         (*terminal).user_input(text);
+    }
+}
+
+#[wasm_bindgen]
+pub fn shitty_handle_mouse_move(terminal: *mut Terminal, x: i32, y: i32) {
+    if terminal.is_null() {
+        return;
+    }
+    unsafe {
+        (*terminal).handle_event(Event::PointerMove(x, y));
+    }
+}
+
+#[wasm_bindgen]
+pub fn shitty_handle_mouse_press(terminal: *mut Terminal, button: usize) {
+    if terminal.is_null() {
+        return;
+    }
+    let Ok(button) = PointerButton::try_from(button) else {
+        return;
+    };
+    unsafe {
+        (*terminal).handle_event(Event::PointerPress(button));
+    }
+}
+
+#[wasm_bindgen]
+pub fn shitty_handle_mouse_release(terminal: *mut Terminal, button: usize) {
+    if terminal.is_null() {
+        return;
+    }
+    let Ok(button) = PointerButton::try_from(button) else {
+        return;
+    };
+    unsafe {
+        (*terminal).handle_event(Event::PointerRelease(button));
+    }
+}
+
+#[wasm_bindgen]
+pub fn shitty_handle_mouse_scroll(terminal: *mut Terminal, lines: i32) {
+    if terminal.is_null() {
+        return;
+    }
+    unsafe {
+        (*terminal).handle_event(Event::scroll(lines));
+    }
+}
+
+#[wasm_bindgen]
+pub fn shitty_handle_mouse_scroll_xy(terminal: *mut Terminal, dx: i32, dy: i32) {
+    if terminal.is_null() {
+        return;
+    }
+    if let Some(event) = Event::scroll_xy(dx, dy) {
+        unsafe {
+            (*terminal).handle_event(event);
+        }
+    }
+}
+
+#[wasm_bindgen]
+pub fn shitty_handle_modifiers(terminal: *mut Terminal, modifiers: u8) {
+    if terminal.is_null() {
+        return;
+    }
+    unsafe {
+        (*terminal).pointer.modifiers = modifiers;
+    }
+}
+
+#[wasm_bindgen]
+pub fn shitty_handle_mouse_leave(terminal: *mut Terminal) {
+    if terminal.is_null() {
+        return;
+    }
+    unsafe {
+        (*terminal).handle_event(Event::PointerLeave);
+    }
+}
+
+#[wasm_bindgen]
+pub fn shitty_handle_focus(terminal: *mut Terminal, gained: bool) {
+    if terminal.is_null() {
+        return;
+    }
+    unsafe {
+        (*terminal).handle_event(Event::Focus(gained));
     }
 }
 

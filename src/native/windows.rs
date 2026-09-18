@@ -18,9 +18,15 @@ const DEFAULT_CONSOLE_COLS: i16 = 120;
 const DEFAULT_CONSOLE_ROWS: i16 = 40;
 const PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE_PTR: usize = PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE as usize;
 
+/// Windows 伪终端（ Pseudoconsole）进程句柄。
+///
+/// Windows pseudoconsole process handle.
 pub struct PtyProcess {
+    /// 用于向子进程写入输入的管道写入端
     pub input_write: HANDLE,
+    /// 用于从子进程读取输出的管道读取端
     pub output_read: HANDLE,
+    /// 子进程的 PID
     pub child_pid: u32,
     hpc: HPCON,
     process_handle: HANDLE,
@@ -52,6 +58,9 @@ impl Drop for PtyProcess {
     }
 }
 
+/// 创建一个 Windows 伪终端并生成子进程。
+///
+/// Create a Windows pseudoconsole and spawn a child process.
 pub fn spawn_pty_process(path: &str, args: &[&str]) -> Result<PtyProcess, i32> {
     eprintln!("winpty: spawn path={path} args={:?}", args);
     eprintln!("winpty: cmdline={}", build_command_line(path, args));
@@ -215,6 +224,9 @@ pub fn spawn_pty_process(path: &str, args: &[&str]) -> Result<PtyProcess, i32> {
     })
 }
 
+/// 调整伪终端的窗口大小。
+///
+/// Resize the pseudoconsole window.
 pub fn set_pty_winsize(process: &PtyProcess, rows: u16, cols: u16, _xpixel: u16, _ypixel: u16) -> Result<(), i32> {
     let size = COORD {
         X: cols as i16,

@@ -5,6 +5,9 @@ use core_maths::CoreFloat as _;
 
 use super::super::{Bytes, FontGlyph, FontGlyphBuffer, FontRenderer};
 
+/// TrueType/OpenType 字体渲染器（基于 ab_glyph 或 swash，由 feature 决定）。
+///
+/// TrueType/OpenType font renderer (backed by ab_glyph or swash, depending on feature).
 pub struct TrueTypeFont {
     font: FontRef<'static>,
     italic_font: Option<FontRef<'static>>,
@@ -33,7 +36,7 @@ impl Debug for TrueTypeFont {
 impl TrueTypeFont {
     /// Create a new `TrueTypeFont` from the given font size and font bytes.
     /// - Returns a boxed `TrueTypeFont` that implements the `FontRenderer` trait.
-    #[allow(clippy::new_ret_no_self)]
+    #[expect(clippy::new_ret_no_self)]
     pub fn new<T: Into<Bytes>>(font_size: i32, font_bytes: T) -> Box<dyn FontRenderer> {
         assert!(font_size > 0, "Font size must be positive");
         assert!(font_size <= u16::MAX as i32, "Font size too large");

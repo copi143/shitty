@@ -7,6 +7,9 @@ use super::super::{FontGlyph, FontGlyphBuffer, FontRenderer};
 const FONT_WIDTH: usize = get_raster_width(FontWeight::Regular, FONT_HEIGHT);
 const FONT_HEIGHT: RasterHeight = RasterHeight::Size20;
 
+/// Noto Sans Mono 位图字体渲染器。使用内嵌的位图数据渲染字符。
+///
+/// Noto Sans Mono bitmap font renderer. Uses embedded bitmap data to render characters.
 pub struct BitmapFont;
 
 assert_send_sync!(BitmapFont);
@@ -14,7 +17,7 @@ assert_send_sync!(BitmapFont);
 impl BitmapFont {
     /// Create a new `BitmapFont` instance.
     /// - Returns a boxed `BitmapFont` that implements the `FontRenderer` trait.
-    #[allow(clippy::new_ret_no_self)]
+    #[expect(clippy::new_ret_no_self)]
     pub fn new() -> Box<dyn FontRenderer> {
         Box::new(Self)
     }

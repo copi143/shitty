@@ -31,8 +31,8 @@ use winit::event::{Ime, MouseScrollDelta, StartCause, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow};
 use winit::window::{Icon, ImePurpose, Window, WindowAttributes, WindowId};
 
-use crate::exec::conf::*;
-use crate::exec::util::*;
+use super::conf::*;
+use super::util::*;
 
 static CLIPBOARD: LazyLock<Mutex<Clipboard>> = LazyLock::new(|| Mutex::new(Clipboard::new().unwrap()));
 
@@ -59,6 +59,9 @@ fn init_terminal(ansi_sender: Sender<Vec<u8>>) -> Terminal {
     terminal
 }
 
+/// 桌面终端应用。使用 winit + softbuffer 实现窗口和渲染。
+///
+/// Desktop terminal application. Uses winit + softbuffer for windowing and rendering.
 pub struct App {
     #[cfg(unix)]
     master: Arc<OwnedFd>,
@@ -127,6 +130,9 @@ impl Drop for App {
 }
 
 impl App {
+    /// 创建一个新的终端应用实例。
+    ///
+    /// Create a new terminal application instance.
     pub fn new(
         #[cfg(unix)] master: OwnedFd,
         #[cfg(unix)] child: libc::pid_t,
@@ -161,6 +167,9 @@ impl App {
         }
     }
 
+    /// 初始化窗口、渲染表面和 PTY I/O 线程。
+    ///
+    /// Initialize the window, render surface, and PTY I/O threads.
     fn init(&mut self, el: &ActiveEventLoop) {
         let attr = WindowAttributes::default().with_title("Terminal").with_inner_size(DISPLAY_SIZE);
         let window = Rc::new(el.create_window(attr).unwrap());
@@ -412,7 +421,7 @@ impl ApplicationHandler for App {
         };
 
         print!(
-            "\r\x1b[KFPS:{:6.1} | Avg:{:6.1} | Min:{:6.1} | Frame:{:6.1}ms | Input:{:7.3}ms | Output:{:7.3}ms",
+            "{CLEAR_LINE}FPS:{:6.1} | Avg:{:6.1} | Min:{:6.1} | Frame:{:6.1}ms | Input:{:7.3}ms | Output:{:7.3}ms",
             fps,
             avg_fps,
             min_fps,
@@ -460,13 +469,21 @@ impl ApplicationHandler for App {
                 self.terminal.lock().unwrap().handle_event(Event::PointerLeave);
                 self.dirty.store(true, Ordering::Relaxed);
             }
+            WindowEvent::Focused(gained) => {
+                self.terminal.lock().unwrap().handle_event(Event::Focus(gained));
+            }
             WindowEvent::MouseWheel { delta, .. } => {
-                let lines = match delta {
-                    MouseScrollDelta::LineDelta(_, lines) => lines,
-                    MouseScrollDelta::PixelDelta(delta) => delta.y as f32 * TOUCHPAD_SCROLL_MULTIPLIER,
+                let (dx, dy) = match delta {
+                    MouseScrollDelta::LineDelta(x, y) => (x as i32, y as i32),
+                    MouseScrollDelta::PixelDelta(delta) => (
+                        (delta.x as f32 * TOUCHPAD_SCROLL_MULTIPLIER) as i32,
+                        (delta.y as f32 * TOUCHPAD_SCROLL_MULTIPLIER) as i32,
+                    ),
                 };
-                if self.terminal.lock().unwrap().handle_event(Event::Scroll(lines as i32)) {
-                    self.dirty.store(true, Ordering::Relaxed);
+                if let Some(event) = Event::scroll_xy(dx, dy) {
+                    if self.terminal.lock().unwrap().handle_event(event) {
+                        self.dirty.store(true, Ordering::Relaxed);
+                    }
                 }
             }
             WindowEvent::MouseInput { state, button, .. } => {

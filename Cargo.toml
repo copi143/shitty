@@ -29,9 +29,9 @@ codegen-units = 1
 
 [features]
 default = ["std-default"]
-std-default = ["std", "default-bgra", "shitty-parser", "logging"]
-ffi-default = ["ffi", "default-bgra", "shitty-parser", "logging"]
-wasm-default = ["wasm", "default-rgba", "shitty-parser", "logging"]
+std-default = ["std", "color-b-before-r", "shitty-parser", "logging"]
+ffi-default = ["ffi", "color-b-before-r", "shitty-parser", "logging"]
+wasm-default = ["wasm", "shitty-parser", "logging"]
 bin = [
     "winit",
     "softbuffer",
@@ -53,33 +53,11 @@ shutup-rust-analyzer = [] # 让 RA 不要抱怨在静态检查时同时使用 `s
 
 rustc-likely-unlikely = []
 
-# 默认的颜色格式，内部传递时使用的格式
-default-rgba = []
-default-bgra = []
-default-argb = []
-default-abgr = []
+alloc-count = []
 
-color-formats = ["rgba", "bgra", "argb", "abgr"]
-
-rgba = [] # in memeory `R G B A` order, 8 bits per channel
-bgra = [] # in memeory `B G R A` order, 8 bits per channel
-argb = [] # in memeory `A R G B` order, 8 bits per channel
-abgr = [] # in memeory `A B G R` order, 8 bits per channel
-# rgba_plane = [] # in memeory `R R R ... G G G ... B B B ... A A A ...` order, 8 bits per channel
-
-rgba16 = [] # in memeory `R G B A` order, 16 bits per channel
-bgra16 = [] # in memeory `B G R A` order, 16 bits per channel
-argb16 = [] # in memeory `A R G B` order, 16 bits per channel
-abgr16 = [] # in memeory `A B G R` order, 16 bits per channel
-
-# # TODO
-# rgb = []
-# bgr = []
-# rgb565 = []
-# bgr565 = []
-# gray8 = []
-# gray16 = []
-# 1bit = []
+color-b-before-r = [] # 默认的颜色格式，内部传递时使用的格式
+color-a-first = []    # 默认的颜色格式，内部传递时使用的格式
+color-formats = []    # 启用所有附加颜色类型（RGBA/BGRA/ARGB/ABGR 等），默认只包含 Color
 
 IBM_VGA_8x16 = []
 font-unifont = ["dep:libbaremetal-unifont"]
@@ -89,9 +67,14 @@ font-swash = ["dep:swash"]
 font-woff2 = ["dep:woff2"]
 font-truetype = ["font-abglyph", "font-swash", "font-woff2"]
 
-keyboard-scancode = ["pc-keyboard"]                                       # 启用对键盘扫描码的支持，允许直接处理原始扫描码输入
-winit = ["dep:winit"]                                                     # 启用 winit 兼容的事件处理
-softbuffer = ["dep:softbuffer", "dep:raw-window-handle", "winit", "bgra"]
+keyboard-scancode = ["pc-keyboard"] # 启用对键盘扫描码的支持，允许直接处理原始扫描码输入
+winit = ["dep:winit"] # 启用 winit 兼容的事件处理
+softbuffer = [
+    "dep:softbuffer",
+    "dep:raw-window-handle",
+    "color-formats",
+    "winit",
+]
 
 # 默认不暴露 FFI 接口，显式启用后才会提供相关的功能
 ffi = []                                                   # 启用 FFI 相关功能，允许通过 C 接口调用库中的功能
@@ -112,9 +95,9 @@ snapshot = [] # TODO 终端状态快照功能，允许保存终端状态为转�
 
 [dependencies]
 core_maths = "0.1.1"
-bitflags = "2.11.1"
-spin = "0.12.0"
-bitvec = { version = "1.0.1", features = ["alloc"], default-features = false }
+bitflags = "2.13.1"
+spin = "0.12.2"
+bitvec = { version = "1.1.1", features = ["alloc"], default-features = false }
 pc-keyboard = { version = "0.9.0", optional = true }
 unicode-width = "0.2.2"
 aligned-vec = { version = "0.6.4", features = [], default-features = false }
@@ -122,9 +105,9 @@ base64ct = { version = "1.8.3", features = ["alloc"] }
 libbaremetal-unifont = { version = "0.1.0", optional = true }
 
 # for WASM support
-wasm-bindgen = { version = "0.2.122", optional = true, default-features = false }
+wasm-bindgen = { version = "0.2.126", optional = true, default-features = false }
 wee_alloc = { version = "0.4.5", optional = true }
-js-sys = { version = "0.3.99", optional = true, default-features = false }
+js-sys = { version = "0.3.103", optional = true, default-features = false }
 
 # for native support
 winit = { version = "0.30.13", optional = true, default-features = false }
@@ -142,7 +125,7 @@ ab_glyph = { version = "0.2.32", optional = true, default-features = false, feat
     "libm",
     "variable-fonts",
 ] }
-swash = { version = "0.2.7", optional = true, default-features = false, features = [
+swash = { version = "0.2.10", optional = true, default-features = false, features = [
     "render",
     "libm",
 ] }
@@ -164,7 +147,7 @@ arboard = { version = "3.6.1", optional = true, default-features = false, featur
 keycode = { version = "1.0.0", optional = true }
 
 [target.'cfg(unix)'.dependencies.libc]
-version = "0.2.186"
+version = "0.2.189"
 optional = true
 
 [target.'cfg(windows)'.dependencies.windows]
@@ -184,4 +167,4 @@ features = [
 
 [target.'cfg(unix)'.dependencies.io-uring]
 optional = true
-version = "0.7.12"
+version = "0.7.13"

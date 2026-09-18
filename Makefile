@@ -1,4 +1,7 @@
 # hello
+#
+# 使用 `make help/<target>` 可以获取特定目标的帮助信息，例如 `make help/lib` 将显示 lib 目标的帮助信息。
+#
 
 SHITTY_LIB_DIR := $(realpath ./lib)
 
@@ -7,10 +10,20 @@ SHITTY_LIB_DIR := $(realpath ./lib)
 MAKEFILE := $(lastword $(MAKEFILE_LIST))
 
 # 获取帮助信息
+#
+# 我们将帮助信息放在构建目标声明前，然后使用 `scripts/help.sh` 脚本从 Makefile 中提取帮助信息并显示给用户。
+#
+# 使用 `make help/<target>` 可以获取特定目标的帮助信息，例如 `make help/lib` 将显示 lib 目标的帮助信息。
+#
 help:
 	@scripts/help.sh "$(MAKEFILE)" || true
 
 # 获取特定目标的帮助信息
+#
+# 我们将帮助信息放在构建目标声明前，然后使用 `scripts/help.sh` 脚本从 Makefile 中提取帮助信息并显示给用户。
+#
+# 使用 `make help/<target>` 可以获取特定目标的帮助信息，例如 `make help/lib` 将显示 lib 目标的帮助信息。
+#
 help/%:
 	@scripts/help.sh "$(MAKEFILE)" "$*" || true
 

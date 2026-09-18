@@ -1,3 +1,23 @@
+//! 终端缓冲区。管理字符存储、滚动历史和渲染。
+//!
+//! 核心类型：
+//! - [`TerminalBuffer`]：主缓冲区，包含 Primary（含历史记录）和 Alternate（备用屏）
+//! - [`Screen`]：渲染管线，脏区追踪 + 多缓冲（单/双/三缓冲）
+//! - [`Drawable`]：像素输出抽象，支持多种颜色格式
+//! - [`Char`]：单个字符及其样式（前景色、背景色、字体标志等）
+//! - [`Cell`]：渲染后的字符单元（含字形缓存）
+//!
+//! ---
+//!
+//! Terminal buffer. Manages character storage, scrollback history, and rendering.
+//!
+//! Core types:
+//! - [`TerminalBuffer`]: Main buffer with Primary (with scrollback) and Alternate screen
+//! - [`Screen`]: Rendering pipeline with dirty tracking and multi-buffering
+//! - [`Drawable`]: Pixel output abstraction supporting multiple color formats
+//! - [`Char`]: Single character with styling (fg, bg, font flags, etc.)
+//! - [`Cell`]: Rendered character cell (with glyph cache)
+
 use alloc::boxed::Box;
 use alloc::string::String;
 use core::ops::Range;
@@ -52,6 +72,23 @@ pub struct TerminalBuffer {
 impl Drop for TerminalBuffer {
     fn drop(&mut self) {
         self.screen.clear(&mut self.font);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::EmptyFontRenderer;
+
+    use super::*;
+
+    #[test]
+    fn terminal_buffer_can_drop_correctly() {
+        let mut buffer = TerminalBuffer::new(BufMode::None);
+        buffer.font.add_renderer(EmptyFontRenderer::new(8, 16));
+        buffer.resize(128, 128);
+        buffer.set(0, 0, Char::empty().with_content('A'), Char::empty());
+        buffer.set(1, 0, Char::empty().with_content('B'), Char::empty());
+        drop(buffer);
     }
 }
 

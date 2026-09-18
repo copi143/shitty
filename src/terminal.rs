@@ -14,7 +14,7 @@ use crate::callback::Callbacks;
 use crate::color::WrappedDrawable;
 use crate::font::FontRenderer;
 use crate::helper::TerminalProcessInput;
-use crate::input::{Event, KeyboardManager, Pointer};
+use crate::input::{Event, KeyboardManager, Pointer, ScrollDirection};
 use crate::palette::Palette;
 
 #[cfg(feature = "vte")]
@@ -220,14 +220,8 @@ impl Terminal {
 
     pub fn put(&mut self, content: char) {
         #[cfg(feature = "vte")]
-        let ch = {
-            let index = self.active_charset as usize;
-            self.style.with_content(self.charsets[index].map(content))
-        };
-        #[cfg(not(feature = "vte"))]
-        let ch = self.style.with_content(content);
-
-        self.buffer.put(ch, self.style);
+        let content = self.charsets[self.active_charset as usize].map(content);
+        self.buffer.put(self.style.with_content(content), self.style);
     }
 
     /// 将用户输入的数据发送到终端内运行的程序。
@@ -257,16 +251,71 @@ impl Terminal {
         }
     }
 
-    pub fn handle_event(&mut self, event: impl TryInto<Event>) -> bool {
-        macro_rules! encode {
-            ($name:ident, $($arg:expr),* $(,)?) => {
-                #[expect(unsafe_code)]
-                unsafe {
-                    let buf = core::mem::transmute(self.pointer.$name($($arg),*));
-                    self.user_input(buf);
-                }
-            };
+    pub(crate) fn report_dec_private(&self, mode: u16) {
+        let mouse = self.pointer.dec_mode_status(mode);
+        let status = if mouse != 0 {
+            mouse
+        } else {
+            match mode {
+                1 => u8::from(!self.mode.contains(TerminalMode::APP_CURSOR)) + 1,
+                7 => u8::from(self.auto_wrap() == AutoWrap::Disabled) + 1,
+                1049 => u8::from(!self.buffer.is_alternate()) + 1,
+                2004 => u8::from(!self.mode.contains(TerminalMode::BRACKETED_PASTE)) + 1,
+                _ => 0,
+            }
+        };
+        self.user_input(format!("\x1b[?{mode};{status}$y").as_bytes());
+    }
+
+    fn clamp_pointer(&self, x: i32, y: i32) -> (i32, i32) {
+        let (fw, fh) = self.buffer.font_size();
+        let max_x = self.cols().saturating_mul(fw).saturating_sub(1) as i32;
+        let max_y = self.rows().saturating_mul(fh).saturating_sub(1) as i32;
+        (x.clamp(0, max_x.max(0)), y.clamp(0, max_y.max(0)))
+    }
+
+    fn emit_mouse(&mut self, encode: impl FnOnce(&mut Pointer, (u32, u32)) -> &[u8]) {
+        #[cfg(feature = "winit")]
+        {
+            self.pointer.modifiers = self.keyboard.modifier_bits();
         }
+        let font_size = self.buffer.font_size();
+        let mut buf = [0u8; 64];
+        let n = {
+            let encoded = encode(&mut self.pointer, font_size);
+            let n = encoded.len().min(buf.len());
+            buf[..n].copy_from_slice(&encoded[..n]);
+            n
+        };
+        if n != 0 {
+            self.user_input(&buf[..n]);
+        }
+    }
+
+    fn emit_encoded(&mut self, encoded: &[u8]) {
+        if encoded.is_empty() {
+            return;
+        }
+        let mut buf = [0u8; 64];
+        let n = encoded.len().min(buf.len());
+        buf[..n].copy_from_slice(&encoded[..n]);
+        self.user_input(&buf[..n]);
+    }
+
+    fn alt_scroll_seq(&self, direction: ScrollDirection) -> &'static str {
+        match (direction, self.keyboard.app_cursor_mode) {
+            (ScrollDirection::Up, false) => "\x1b[A",
+            (ScrollDirection::Up, true) => "\x1bOA",
+            (ScrollDirection::Down, false) => "\x1b[B",
+            (ScrollDirection::Down, true) => "\x1bOB",
+            (ScrollDirection::Right, false) => "\x1b[C",
+            (ScrollDirection::Right, true) => "\x1bOC",
+            (ScrollDirection::Left, false) => "\x1b[D",
+            (ScrollDirection::Left, true) => "\x1bOD",
+        }
+    }
+
+    pub fn handle_event(&mut self, event: impl TryInto<Event>) -> bool {
         let event = match event.try_into() {
             Ok(it) => it,
             Err(_) => return false,
@@ -274,14 +323,6 @@ impl Terminal {
         match event {
             Event::SetColorScheme(index) => {
                 self.set_color_scheme(index);
-            }
-            Event::KbdScroll { up, page } => {
-                let lines = if page { self.rows() } else { 1 } as i32;
-                self.view_at = self.view_at.saturating_add_signed(if up { -lines } else { lines });
-                if self.view_at > self.buffer.history_size() {
-                    self.view_at = self.buffer.history_size();
-                }
-                self.view_history(self.view_at);
             }
             Event::String(s) => {
                 self.user_input(s.as_bytes());
@@ -312,27 +353,64 @@ impl Terminal {
             }
 
             Event::PointerMove(x, y) => {
-                self.pointer.x = x;
-                self.pointer.y = y;
-                encode!(encode_move, self.buffer.font_size());
+                let (cx, cy) = self.clamp_pointer(x, y);
+                if (cx, cy) != (x, y) {
+                    self.pointer.forget_cell();
+                }
+                self.pointer.x = cx;
+                self.pointer.y = cy;
+                self.emit_mouse(Pointer::encode_move);
             }
-            Event::Scroll(delta) => {
-                if delta == 0 {
+            Event::Scroll { direction, count, page } => {
+                if count == 0 {
                     return false;
                 }
-                encode!(encode_scroll, delta, self.buffer.font_size());
+                if self.pointer.reporting() {
+                    for _ in 0..count {
+                        self.emit_mouse(|pointer, font_size| pointer.encode_scroll(direction, font_size));
+                    }
+                    return false;
+                }
+                if !page && self.pointer.enabled_1007 && self.buffer.is_alternate() {
+                    let seq = self.alt_scroll_seq(direction);
+                    for _ in 0..(count * self.pointer.scroll_speed.max(1) as u32) {
+                        self.user_input(seq.as_bytes());
+                    }
+                    return false;
+                }
+                let lines =
+                    if page { self.rows() } else { self.pointer.scroll_speed.max(1) as u32 } as i32 * count as i32;
+                self.view_at = self.view_at.saturating_add_signed(match direction {
+                    ScrollDirection::Up => -lines,
+                    ScrollDirection::Down => lines,
+                    _ => 0,
+                });
+                if self.view_at > self.buffer.history_size() {
+                    self.view_at = self.buffer.history_size();
+                }
+                self.view_history(self.view_at);
             }
             Event::PointerPress(button) => {
-                encode!(encode_press, button, self.buffer.font_size());
+                self.emit_mouse(|pointer, font_size| pointer.encode_press(button, font_size));
             }
             Event::PointerRelease(button) => {
-                encode!(encode_release, button, self.buffer.font_size());
+                self.emit_mouse(|pointer, font_size| pointer.encode_release(button, font_size));
             }
             Event::PointerEnter => {
-                encode!(encode_enter, self.buffer.font_size());
+                self.emit_mouse(Pointer::encode_enter);
             }
             Event::PointerLeave => {
-                encode!(encode_leave, self.buffer.font_size());
+                self.emit_mouse(Pointer::encode_leave);
+            }
+            Event::Focus(gained) => {
+                let mut buf = [0u8; 8];
+                let n = {
+                    let encoded = self.pointer.encode_focus(gained);
+                    let n = encoded.len().min(buf.len());
+                    buf[..n].copy_from_slice(&encoded[..n]);
+                    n
+                };
+                self.emit_encoded(&buf[..n]);
             }
         }
         true
@@ -406,6 +484,8 @@ impl Terminal {
         self.saved_cursor_shape = self.buffer.cursor_shape();
         self.mode = TerminalMode::default();
         self.style = Char::empty();
+        self.pointer.reset_modes();
+        self.keyboard.app_cursor_mode = false;
     }
 
     /// 获取 [`TerminalBuffer`] 的 cursor 位置信息。
@@ -454,9 +534,11 @@ impl Terminal {
 
 impl Terminal {
     pub(crate) fn view_history(&mut self, at: u32) {
-        self.view_at = at;
-        self.buffer.view(at);
-        self.dirty.store(true, Ordering::Relaxed);
+        if self.view_at != at {
+            self.view_at = at;
+            self.buffer.view(at);
+            self.dirty.store(true, Ordering::Relaxed);
+        }
     }
 
     pub(crate) fn enter_alternate(&mut self) {

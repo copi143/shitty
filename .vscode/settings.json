@@ -4,7 +4,6 @@
   "rust-analyzer.cargo.features": [
     "bin",
     "shutup-rust-analyzer",
-    "default-rgba",
     "IBM_VGA_8x16",
     "font-unifont",
     "font-bitmap",
@@ -24,7 +23,8 @@
     "fast-parser",
     "native",
     "logging",
-    "snapshot"
+    "snapshot",
+    "alloc-count"
   ],
   "rust-analyzer.check.command": "clippy",
   "rust-analyzer.check.extraArgs": [

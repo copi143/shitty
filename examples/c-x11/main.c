@@ -61,6 +61,8 @@ int main(int argc, char **argv) {
   XStoreName(dpy, win, "shitty X11 example");
   XSelectInput(dpy, win,
                ExposureMask | KeyPressMask | KeyReleaseMask |
+                   ButtonPressMask | ButtonReleaseMask | PointerMotionMask |
+                   EnterWindowMask | LeaveWindowMask | FocusChangeMask |
                    StructureNotifyMask);
   XMapWindow(dpy, win);
 
@@ -133,6 +135,42 @@ int main(int argc, char **argv) {
         if (len > 0) {
           shitty_process(term, (const shitty_u8 *)buf, (shitty_usize)len);
         }
+      } else if (ev.type == MotionNotify) {
+        unsigned m = ev.xmotion.state;
+        shitty_handle_modifiers(term, (shitty_u8)(((m & ShiftMask) ? 4 : 0) |
+                                                  ((m & Mod1Mask) ? 8 : 0) |
+                                                  ((m & ControlMask) ? 16 : 0)));
+        shitty_handle_mouse_move(term, ev.xmotion.x, ev.xmotion.y);
+      } else if (ev.type == ButtonPress || ev.type == ButtonRelease) {
+        unsigned m = ev.xbutton.state;
+        shitty_handle_modifiers(term, (shitty_u8)(((m & ShiftMask) ? 4 : 0) |
+                                                  ((m & Mod1Mask) ? 8 : 0) |
+                                                  ((m & ControlMask) ? 16 : 0)));
+        unsigned b = ev.xbutton.button;
+        if (b == 4 || b == 5 || b == 6 || b == 7) {
+          if (ev.type == ButtonPress) {
+            int dx = (b == 6) ? -1 : (b == 7) ? 1 : 0;
+            int dy = (b == 4) ? 1 : (b == 5) ? -1 : 0;
+            shitty_handle_mouse_scroll_xy(term, dx, dy);
+          }
+        } else {
+          shitty_usize btn = (b == 1)   ? SHITTY_MOUSE_BUTTON_LEFT
+                             : (b == 2) ? SHITTY_MOUSE_BUTTON_MIDDLE
+                             : (b == 3) ? SHITTY_MOUSE_BUTTON_RIGHT
+                                        : (shitty_usize)-1;
+          if (btn != (shitty_usize)-1) {
+            if (ev.type == ButtonPress)
+              shitty_handle_mouse_press(term, btn);
+            else
+              shitty_handle_mouse_release(term, btn);
+          }
+        }
+      } else if (ev.type == LeaveNotify) {
+        shitty_handle_mouse_leave(term);
+      } else if (ev.type == FocusIn) {
+        shitty_handle_focus(term, 1);
+      } else if (ev.type == FocusOut) {
+        shitty_handle_focus(term, 0);
       } else if (ev.type == ConfigureNotify) {
         XConfigureEvent *ce = &ev.xconfigure;
         if ((unsigned)ce->width != width || (unsigned)ce->height != height) {
@@ -155,7 +193,8 @@ int main(int argc, char **argv) {
 
     /* call shitty_flush to render into our framebuffer */
     uint64_t ms = (uint64_t)(time(NULL) * 1000);
-    shitty_flush(term, width, height, pitch, fb, ms);
+    shitty_flush(term, width, height, pitch, fb, ms,
+                 0 /* SHITTY_COLORFMT_DEFAULT */);
 
     /* Put image to window */
     XPutImage(dpy, win, gc, xim, 0, 0, 0, 0, width, height);

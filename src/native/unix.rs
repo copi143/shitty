@@ -37,7 +37,7 @@ pub fn spawn_pty_process(path: &str, args: &[&str]) -> Result<PtyProcess, i32> {
             unsafe { libc::close(slave) };
             Ok((master, pid))
         }
-        _ => Err(unsafe { *libc::__errno_location() }),
+        _ => Err(errno()),
     }
 }
 
@@ -55,22 +55,26 @@ pub fn set_pty_winsize(master_fd: i32, rows: u16, cols: u16, xpixel: u16, ypixel
     cvt(unsafe { libc::ioctl(master_fd, libc::TIOCSWINSZ, &ws as *const Winsize as *const libc::c_void) }).map(|_| ())
 }
 
+fn child_prepare(master: i32, slave: i32) -> Result<(), i32> {
+    unsafe {
+        cvt(libc::close(master))?;
+        cvt(libc::setsid())?;
+        cvt(libc::dup2(slave, libc::STDIN_FILENO))?;
+        cvt(libc::dup2(slave, libc::STDOUT_FILENO))?;
+        cvt(libc::dup2(slave, libc::STDERR_FILENO))?;
+        cvt(libc::close(slave))?;
+    }
+    Ok(())
+}
+
 /// Executes the child side of a PTY fork.
 ///
 /// This function never returns: it either successfully replaces the process image via `execvp`,
 /// or exits the child process with a non-zero code when setup fails.
 fn child_exec(master: i32, slave: i32, path: &str, args: &[&str]) -> ! {
-    unsafe { libc::close(master) };
-
-    if unsafe { libc::setsid() } == -1
-        || unsafe { libc::dup2(slave, libc::STDIN_FILENO) } == -1
-        || unsafe { libc::dup2(slave, libc::STDOUT_FILENO) } == -1
-        || unsafe { libc::dup2(slave, libc::STDERR_FILENO) } == -1
-    {
-        unsafe { libc::exit(1) }
+    if child_prepare(master, slave).is_err() {
+        unsafe { libc::exit(1) };
     }
-
-    unsafe { libc::close(slave) };
 
     let c_path = match CString::new(path) {
         Ok(v) => v,
@@ -91,5 +95,9 @@ fn child_exec(master: i32, slave: i32, path: &str, args: &[&str]) -> ! {
 
 /// Converts c-style return values into `Result`.
 fn cvt(ret: i32) -> Result<i32, i32> {
-    if ret == -1 { Err(unsafe { *libc::__errno_location() }) } else { Ok(ret) }
+    if ret == -1 { Err(errno()) } else { Ok(ret) }
+}
+
+fn errno() -> i32 {
+    unsafe { *libc::__errno_location() }
 }

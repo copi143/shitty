@@ -9,6 +9,9 @@ use crate::color::{AnsiColor, AnsiNamedColor, ColorScheme, IColor};
 use crate::font::{FontBuffer, FontChar};
 use crate::font::{RenderResultRef, RenderResultType, RenderResultUnion};
 
+/// 字体样式标志（粗体、斜体）。
+///
+/// Font style flags (bold, italic).
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FontFlags(u8);
@@ -23,36 +26,57 @@ impl FontFlags {
     /// Italic text
     pub const ITALIC: u8 = 1 << 1;
 
+    /// 默认字体样式（无粗体/斜体）。
+    ///
+    /// Default font style (no bold/italic).
     #[inline(always)]
     pub const fn default() -> Self {
         Self(0)
     }
 
+    /// 粗体样式。
+    ///
+    /// Bold style.
     #[inline(always)]
     pub const fn bold() -> Self {
         Self(Self::BOLD)
     }
 
+    /// 斜体样式。
+    ///
+    /// Italic style.
     #[inline(always)]
     pub const fn italic() -> Self {
         Self(Self::ITALIC)
     }
 
+    /// 粗体 + 斜体样式。
+    ///
+    /// Bold + italic style.
     #[inline(always)]
     pub const fn bold_italic() -> Self {
         Self(Self::BOLD | Self::ITALIC)
     }
 
+    /// 是否为粗体。
+    ///
+    /// Whether the text is bold.
     #[inline(always)]
     pub const fn is_bold(&self) -> bool {
         self.0 & Self::BOLD != 0
     }
 
+    /// 是否为斜体。
+    ///
+    /// Whether the text is italic.
     #[inline(always)]
     pub const fn is_italic(&self) -> bool {
         self.0 & Self::ITALIC != 0
     }
 
+    /// 设置粗体状态。
+    ///
+    /// Set the bold state.
     #[inline(always)]
     pub const fn set_bold(&mut self, bold: bool) {
         if bold {
@@ -62,6 +86,9 @@ impl FontFlags {
         }
     }
 
+    /// 设置斜体状态。
+    ///
+    /// Set the italic state.
     #[inline(always)]
     pub const fn set_italic(&mut self, italic: bool) {
         if italic {
@@ -93,6 +120,9 @@ fn widthof(ch: char) -> u8 {
 
 static_assert!(core::mem::size_of::<Char>() == 16);
 
+/// 终端的字符表示，包含字符本身及其样式属性。
+///
+/// Character representation in the terminal, including the character itself and its style attributes.
 #[repr(C, align(16))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Char {
@@ -208,6 +238,13 @@ impl Char {
         self
     }
 
+    /// 将当前单元格的内容设为空格并保留属性。
+    /// - 字符设置为 `' '`，宽度设置为 1
+    ///
+    /// ---
+    ///
+    /// Set the content of the current cell to a space and keep the attributes.
+    /// - The character is set to `' '` and the width is set to 1.
     #[must_use]
     pub const fn as_space(mut self) -> Self {
         self.ch = ' ';
@@ -216,21 +253,33 @@ impl Char {
         self
     }
 
+    /// 单元格是否为空（`\0` 且宽度为 1）。
+    ///
+    /// Whether the cell is empty (`\0` with width 1).
     #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.ch == '\0' && self.width == 1
     }
 
+    /// 单元格是否为占位符（`\0` 且宽度为 0）。
+    ///
+    /// Whether the cell is a placeholder (`\0` with width 0).
     #[must_use]
     pub const fn is_placeholder(&self) -> bool {
         self.ch == '\0' && self.width == 0
     }
 
+    /// 单元格是否为空格字符。
+    ///
+    /// Whether the cell contains a space character.
     #[must_use]
     pub const fn is_space(&self) -> bool {
         self.ch == ' '
     }
 
+    /// 设置单元格的内容字符，自动计算宽度。
+    ///
+    /// Set the content character of the cell, automatically calculating the width.
     #[must_use]
     pub fn with_content(mut self, content: char) -> Self {
         self.ch = content;
@@ -239,6 +288,9 @@ impl Char {
         self
     }
 
+    /// 设置单元格的前景色和背景色。
+    ///
+    /// Set the foreground and background colors of the cell.
     #[must_use]
     pub fn with_color(mut self, fg: AnsiColor, bg: AnsiColor) -> Self {
         self.fg = fg;
@@ -247,6 +299,9 @@ impl Char {
         self
     }
 
+    /// 交换前景色和背景色。
+    ///
+    /// Swap the foreground and background colors.
     #[must_use]
     pub fn invert_color(mut self) -> Self {
         core::mem::swap(&mut self.fg, &mut self.bg);
@@ -262,23 +317,23 @@ impl Char {
 
 static_assert!(core::mem::size_of::<Cell<crate::Color>>() == 32);
 
-/// 内部有数据时不要随便 clone，可能导致缓存的字体渲染结果未被释放。<br />
-/// clone 出来的也要调用 unref 释放。<br />
-///
-/// --
-///
-/// Do not clone casually when there is internal data, which may cause the cached font rendering result to not be released.<br />
-/// The cloned one should also call unref to release.<br />
 #[repr(C, align(16))]
 pub struct Cell<T: IColor> {
+    /// 字符本身
     pub ch: char,
+    /// 字符宽度（1 或 2）
     pub width: u8,
+    /// 字体样式（粗体、斜体）
     pub font: FontFlags,
+    /// 额外标志（下划线、删除线）
     pub flags: CharFlags,
     rendt: RenderResultType,
     rendr: RenderResultUnion,
+    /// 前景色
     pub fg: T,
+    /// 背景色
     pub bg: T,
+    /// 时间戳，用于缓存失效
     pub tick: Tick,
 }
 
@@ -326,6 +381,9 @@ impl<T: IColor> Drop for Cell<T> {
 
 #[expect(unsafe_code)]
 impl<T: IColor> Cell<T> {
+    /// 释放单元格及其关联的字体渲染资源。
+    ///
+    /// Release the cell and its associated font rendering resources.
     pub fn drop(mut self, font: &mut FontBuffer) {
         if self.rendt != RenderResultType::Empty && self.rendt != RenderResultType::Blank {
             let rendt = core::mem::replace(&mut self.rendt, RenderResultType::Empty);
@@ -334,6 +392,9 @@ impl<T: IColor> Cell<T> {
         }
     }
 
+    /// 使用配色方案创建一个新的空白单元格。
+    ///
+    /// Create a new blank cell with the given color scheme.
     #[must_use]
     pub fn new(scheme: &ColorScheme<T>) -> Self {
         Self {
@@ -349,6 +410,9 @@ impl<T: IColor> Cell<T> {
         }
     }
 
+    /// 从 `Char` 和字体渲染缓存创建 `Cell`。
+    ///
+    /// Create a `Cell` from a `Char` and font rendering cache.
     #[must_use]
     pub fn from(font: &mut FontBuffer, scheme: &ColorScheme<T>, ch: Char) -> Self {
         let (rendt, rendr) = font.get(ch.as_font_char()).split();
@@ -370,10 +434,16 @@ impl<T: IColor> Cell<T> {
         FontChar::new(self.ch, self.width, self.font.is_bold(), self.font.is_italic())
     }
 
+    /// 获取对字体渲染结果的引用。
+    ///
+    /// Get a reference to the font rendering result.
     pub fn rend_ref(&self) -> RenderResultRef<'_> {
         unsafe { self.rendr.as_ref(&self.rendt) }
     }
 
+    /// 清空单元格内容为空格，可选择是否重置颜色。
+    ///
+    /// Clear the cell content to a space, optionally resetting colors.
     pub fn clear(&mut self, scheme: &ColorScheme<T>, font: &mut FontBuffer, clear_color: bool) {
         let font_char = self.as_font_char();
         self.ch = ' ';
@@ -388,6 +458,9 @@ impl<T: IColor> Cell<T> {
         font.unref(font_char, unsafe { rendt.merge(rendr) });
     }
 
+    /// 使用新的 `Char` 更新单元格内容，并更新字体缓存和时间戳。
+    ///
+    /// Update the cell content with a new `Char`, updating the font cache and timestamp.
     pub fn update(&mut self, scheme: &ColorScheme<T>, font: &mut FontBuffer, ch: Char, tick: Tick) -> bool {
         let old_fc = self.as_font_char();
         self.ch = ch.ch;
@@ -423,29 +496,45 @@ pub struct LineSlice<'chars> {
 
 #[expect(unsafe_code)]
 impl LineSlice<'_> {
+    /// 获取指定列位置的字符引用。
+    ///
+    /// Get a reference to the character at the specified column position.
     pub fn get(&self, x: u32) -> &Char {
         debug_assert!((x as usize) < self.chars.len(), "X coordinate out of bounds");
         unsafe { self.chars.get_unchecked(x as usize) }
     }
 
+    /// 获取指定列位置的字符可变引用。
+    ///
+    /// Get a mutable reference to the character at the specified column position.
     pub fn get_mut(&mut self, x: u32) -> &mut Char {
         debug_assert!((x as usize) < self.chars.len(), "X coordinate out of bounds");
         unsafe { self.chars.get_unchecked_mut(x as usize) }
     }
 }
 
+/// 单元格的可变切片，用于批量渲染操作。
+///
+/// A mutable slice of cells, used for batch rendering operations.
 #[derive(Debug)]
 pub struct CellSlice<'cells, T: IColor> {
+    /// 底层的单元格切片
     pub cells: &'cells mut [Cell<T>],
 }
 
 #[expect(unsafe_code)]
 impl<T: IColor> CellSlice<'_, T> {
+    /// 获取指定列位置的单元格引用。
+    ///
+    /// Get a reference to the cell at the specified column position.
     pub fn get(&self, x: u32) -> &Cell<T> {
         debug_assert!((x as usize) < self.cells.len(), "X coordinate out of bounds");
         unsafe { self.cells.get_unchecked(x as usize) }
     }
 
+    /// 获取指定列位置的单元格可变引用。
+    ///
+    /// Get a mutable reference to the cell at the specified column position.
     pub fn get_mut(&mut self, x: u32) -> &mut Cell<T> {
         debug_assert!((x as usize) < self.cells.len(), "X coordinate out of bounds");
         unsafe { self.cells.get_unchecked_mut(x as usize) }

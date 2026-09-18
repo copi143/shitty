@@ -83,10 +83,20 @@ pub unsafe extern "C" fn shitty_callback_aligned_realloc(ptr: *mut u8, size: usi
     new_ptr
 }
 
+/// 使用 C 回调函数（`shitty_callback_*`）的全局分配器。
+///
+/// A global allocator using C callback functions (`shitty_callback_*`).
 #[allow(dead_code)]
 struct CAllocator;
 
+/// # Safety
+///
+/// This allocator delegates to external C callbacks; the caller must ensure
+/// those callbacks are correctly implemented.
 unsafe impl GlobalAlloc for CAllocator {
+    /// 分配内存，对齐大于 `2 * sizeof(usize)` 时使用对齐分配。
+    ///
+    /// Allocate memory, using aligned allocation when alignment exceeds `2 * sizeof(usize)`.
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         if layout.align() > 2 * core::mem::size_of::<usize>() {
             unsafe { shitty_callback_aligned_alloc(layout.size(), layout.align()) }
@@ -95,10 +105,16 @@ unsafe impl GlobalAlloc for CAllocator {
         }
     }
 
+    /// 释放之前分配的内存。
+    ///
+    /// Free previously allocated memory.
     unsafe fn dealloc(&self, ptr: *mut u8, _layout: Layout) {
         unsafe { shitty_callback_free(ptr) }
     }
 
+    /// 重新分配内存，必要时扩展或收缩。
+    ///
+    /// Reallocate memory, growing or shrinking as needed.
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         if layout.align() > 2 * core::mem::size_of::<usize>() {
             unsafe { shitty_callback_aligned_realloc(ptr, new_size, layout.align()) }

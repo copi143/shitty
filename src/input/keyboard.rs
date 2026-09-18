@@ -10,13 +10,30 @@ pub use winit::{
     keyboard::{Key as WinitKey, NamedKey as WinitNamedKey},
 };
 
-use crate::input::Event;
+use crate::input::{Event, ScrollDirection};
 
+/// 键盘输入管理器。负责将按键事件转换为终端转义序列。
+///
+/// 支持两种输入后端：
+/// - `keyboard-scancode`：原始 PS/2 扫描码（裸机/无窗口环境）
+/// - `winit`：winit 窗口事件（桌面环境）
+///
+/// Keyboard input manager. Converts key events into terminal escape sequences.
+///
+/// Supports two input backends:
+/// - `keyboard-scancode`: Raw PS/2 scancodes (bare-metal / no-window environments)
+/// - `winit`: Winit window events (desktop environments)
 pub struct KeyboardManager {
-    app_cursor_mode: bool,
+    pub app_cursor_mode: bool,
+    /// 是否将回车（CR）映射为回车换行（CR+LF）。
+    ///
+    /// Whether to map carriage return (CR) to carriage return + line feed (CR+LF).
     pub crnl_mapping: bool,
     #[cfg(feature = "keyboard-scancode")]
     keyboard: PcKeyboard<Us104Key, ScancodeSet1>,
+    /// 当前修饰键状态（仅 winit 模式下使用）。
+    ///
+    /// Current modifier key state (only used in winit mode).
     #[cfg(feature = "winit")]
     pub modifiers: WinitModifiers,
 }
@@ -35,8 +52,27 @@ impl Default for KeyboardManager {
 }
 
 impl KeyboardManager {
-    pub fn set_app_cursor(&mut self, mode: bool) {
-        self.app_cursor_mode = mode;
+    pub fn modifier_bits(&self) -> u8 {
+        #[cfg(feature = "winit")]
+        {
+            let state = self.modifiers.state();
+            let mut bits = 0u8;
+            if state.shift_key() {
+                bits |= 4;
+            }
+            if state.alt_key() {
+                bits |= 8;
+            }
+            if state.control_key() {
+                bits |= 16;
+            }
+            bits
+        }
+        #[cfg(not(feature = "winit"))]
+        {
+            let _ = self;
+            0
+        }
     }
 
     fn char_to_event(&self, c: char) -> Event {
@@ -65,6 +101,9 @@ macro_rules! app_cursor {
 
 #[cfg(feature = "keyboard-scancode")]
 impl KeyboardManager {
+    /// 处理原始 PS/2 扫描码输入（仅 `keyboard-scancode` feature）。
+    ///
+    /// Handle raw PS/2 scancode input (only with `keyboard-scancode` feature).
     pub fn handle_pckb_key(&mut self, scancode: u8) -> Option<Event> {
         self.keyboard
             .add_byte(scancode)
@@ -115,12 +154,14 @@ impl KeyboardManager {
         match key {
             C => Some(Event::Copy),
             V => Some(Event::Paste),
-            ArrowUp | PageUp => Some(Event::KbdScroll {
-                up: true,
+            ArrowUp | PageUp => Some(Event::Scroll {
+                direction: ScrollDirection::Up,
+                count: 1,
                 page: matches!(key, PageUp),
             }),
-            ArrowDown | PageDown => Some(Event::KbdScroll {
-                up: false,
+            ArrowDown | PageDown => Some(Event::Scroll {
+                direction: ScrollDirection::Down,
+                count: 1,
                 page: matches!(key, PageDown),
             }),
             _ => None,
@@ -158,6 +199,9 @@ impl KeyboardManager {
 
 #[cfg(feature = "winit")]
 impl KeyboardManager {
+    /// 处理 winit 键盘事件（仅 `winit` feature）。
+    ///
+    /// Handle winit keyboard event (only with `winit` feature).
     pub fn handle_winit_key(
         &self,
         state: WinitElementState,
@@ -212,12 +256,14 @@ impl KeyboardManager {
             return match named {
                 Copy => Some(Event::Copy),
                 Paste => Some(Event::Paste),
-                ArrowUp | PageUp => Some(Event::KbdScroll {
-                    up: true,
+                ArrowUp | PageUp => Some(Event::Scroll {
+                    direction: ScrollDirection::Up,
+                    count: 1,
                     page: matches!(named, PageUp),
                 }),
-                ArrowDown | PageDown => Some(Event::KbdScroll {
-                    up: false,
+                ArrowDown | PageDown => Some(Event::Scroll {
+                    direction: ScrollDirection::Down,
+                    count: 1,
                     page: matches!(named, PageDown),
                 }),
                 _ => None,

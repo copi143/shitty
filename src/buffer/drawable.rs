@@ -31,7 +31,7 @@ use crate::helper::{likely, unlikely};
 /// ```rust,ignore
 /// let mut buffer = vec![0u32; surface_width * surface_height];
 /// let mut drawable = Drawable::new(
-///     BGRA::from_u32_mut_slice(&mut buffer),
+///     Color::from_u32_mut_slice(&mut buffer),
 ///     surface_width,
 ///     surface_height,
 ///     0,
@@ -45,7 +45,7 @@ use crate::helper::{likely, unlikely};
 /// let mut buffer = vec![0u32; surface_width * surface_height];
 /// let mut drawable = unsafe {
 ///    Drawable::from_raw_parts(
-///       buffer.as_mut_ptr() as *mut BGRA,
+///       buffer.as_mut_ptr() as *mut Color,
 ///       surface_width,
 ///       surface_height,
 ///       0,

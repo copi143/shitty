@@ -30,13 +30,13 @@ macro_rules! eprintlns {
 
 #[cfg(unix)]
 fn parent_main(master: OwnedFd, child: libc::pid_t) -> Result<(), Box<dyn Error>> {
-    shitty::set_logger(|args| println!("\r\x1b[KTerminal: {:?}", args));
+    shitty::set_logger(|args| println!("{CLEAR_LINE}Terminal: {:?}", args));
     EventLoop::new()?.run_app(&mut App::new(master, child)).map_err(|e| Box::new(e) as Box<dyn Error>)
 }
 
 #[cfg(windows)]
 fn parent_main(process: PtyProcess) -> Result<(), Box<dyn Error>> {
-    shitty::set_logger(|args| println!("\r\x1b[KTerminal: {:?}", args));
+    shitty::set_logger(|args| println!("{CLEAR_LINE}Terminal: {:?}", args));
     EventLoop::new()?.run_app(&mut App::new(process)).map_err(|e| Box::new(e) as Box<dyn Error>)
 }
 

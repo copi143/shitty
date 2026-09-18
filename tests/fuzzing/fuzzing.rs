@@ -23,7 +23,7 @@ libfuzzer_sys::fuzz_target!(|ops: Vec<FuzzOp>| {
             }
             FuzzOp::Flush => {
                 let mut drawable = shitty::Drawable::new(
-                    shitty::BGRA::from_u32_mut_slice(&mut buffer),
+                    shitty::Color::from_u32_mut_slice(&mut buffer),
                     TERM_SIZE_PX.0 as usize,
                     TERM_SIZE_PX.1 as usize,
                     0,

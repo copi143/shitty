@@ -96,6 +96,11 @@ impl Processor {
                 continue;
             }
 
+            if let Some(consumed) = Self::try_dec_private(terminal, ascii_slice) {
+                pos = esc_pos + consumed;
+                continue;
+            }
+
             let seq_str = core::str::from_utf8(ascii_slice).unwrap_or("");
             match parse_escape(seq_str) {
                 Ok((rest, sequence)) => {
@@ -143,6 +148,91 @@ impl Processor {
         }
     }
 
+    fn try_dec_private(terminal: &mut TerminalWrapper<'_>, bytes: &[u8]) -> Option<usize> {
+        if bytes.len() < 4 || bytes[0] != 0x1b || bytes[1] != b'[' || bytes[2] != b'?' {
+            return None;
+        }
+        let mut i = 3;
+        let mut modes = [0u16; 16];
+        let mut n = 0usize;
+        let mut cur = 0u16;
+        let mut has = false;
+        while i < bytes.len() {
+            match bytes[i] {
+                b'0'..=b'9' => {
+                    has = true;
+                    cur = cur.saturating_mul(10).saturating_add((bytes[i] - b'0') as u16);
+                }
+                b';' => {
+                    if n < modes.len() {
+                        modes[n] = cur;
+                        n += 1;
+                    }
+                    cur = 0;
+                    has = false;
+                }
+                b'$' => {}
+                b'h' | b'l' | b'p' => {
+                    if has || n == 0 {
+                        if n < modes.len() {
+                            modes[n] = cur;
+                            n += 1;
+                        }
+                    }
+                    if bytes[i] == b'p' {
+                        for mode in &modes[..n] {
+                            terminal.report_dec_private(*mode);
+                        }
+                        return Some(i + 1);
+                    }
+                    const fn ours(mode: u16) -> bool {
+                        matches!(
+                            mode,
+                            1 | 9 | 1000 | 1001 | 1002 | 1003 | 1004 | 1005 | 1006 | 1007 | 1015 | 1016 | 1049 | 2004
+                        )
+                    }
+                    if !modes[..n].iter().copied().all(ours) {
+                        return None;
+                    }
+                    let enable = bytes[i] == b'h';
+                    for mode in &modes[..n] {
+                        terminal.pointer.set_dec_mode(*mode, enable);
+                        match *mode {
+                            1 => {
+                                if enable {
+                                    terminal.mode.insert(TerminalMode::APP_CURSOR);
+                                    terminal.keyboard.app_cursor_mode = true;
+                                } else {
+                                    terminal.mode.remove(TerminalMode::APP_CURSOR);
+                                    terminal.keyboard.app_cursor_mode = false;
+                                }
+                            }
+                            1049 => {
+                                if enable {
+                                    terminal.enter_alternate();
+                                } else {
+                                    terminal.exit_alternate();
+                                }
+                            }
+                            2004 => {
+                                if enable {
+                                    terminal.mode.insert(TerminalMode::BRACKETED_PASTE);
+                                } else {
+                                    terminal.mode.remove(TerminalMode::BRACKETED_PASTE);
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    return Some(i + 1);
+                }
+                _ => return None,
+            }
+            i += 1;
+        }
+        None
+    }
+
     fn apply_sequence(terminal: &mut TerminalWrapper<'_>, sequence: AnsiSequence) {
         match sequence {
             AnsiSequence::CursorPos(row, col) => {
@@ -174,7 +264,7 @@ impl Processor {
             AnsiSequence::HideCursor => terminal.buffer.hide_cursor(),
             AnsiSequence::CursorToApp => {
                 terminal.mode.insert(TerminalMode::APP_CURSOR);
-                terminal.keyboard.set_app_cursor(true);
+                terminal.keyboard.app_cursor_mode = true;
             }
             AnsiSequence::SetNewLineMode => terminal.mode.insert(TerminalMode::LINE_FEED_NEW_LINE),
             AnsiSequence::SetLineFeedMode => terminal.mode.remove(TerminalMode::LINE_FEED_NEW_LINE),

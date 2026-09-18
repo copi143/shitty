@@ -35,6 +35,16 @@ impl Line {
     }
 }
 
+/// 主缓冲区（primary buffer），支持滚动历史。
+///
+/// 使用 [`VecDeque`] 作为环形缓冲区存储行，历史行和当前屏幕行分开管理。
+///
+/// ---
+///
+/// The primary buffer with scrollback history.
+///
+/// Lines are stored in a [`VecDeque`] ring buffer, with history lines and screen lines
+/// managed separately.
 pub struct Primary {
     /// 行历史
     lines: VecDeque<Line>,
@@ -55,6 +65,9 @@ pub struct Primary {
 }
 
 impl Primary {
+    /// 创建一个新的主缓冲区。
+    ///
+    /// Create a new primary buffer.
     pub fn new(width: u32, height: u32, max_lines: u32) -> Self {
         Self {
             lines: VecDeque::with_capacity(max_lines as usize),
@@ -197,7 +210,9 @@ impl Buffer for Primary {
         self.viewport = min(y, self.history_size());
     }
 
-    /// 渲染用
+    /// 获取视口中指定位置的字符，用于渲染。
+    ///
+    /// Get the character at the specified position in the viewport, for rendering.
     #[inline(always)]
     fn at(&self, x: u32, y: u32) -> Char {
         let y = self.viewport + y;
@@ -208,7 +223,9 @@ impl Buffer for Primary {
         }
     }
 
-    /// 渲染用
+    /// 获取视口中指定行的可变引用，用于渲染。
+    ///
+    /// Get a mutable reference to the specified line in the viewport, for rendering.
     #[inline(always)]
     fn at_line(&'_ mut self, y: u32) -> LineSlice<'_> {
         let y = self.viewport + y;

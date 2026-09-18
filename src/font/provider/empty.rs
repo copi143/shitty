@@ -2,6 +2,9 @@ use alloc::boxed::Box;
 
 use super::super::{FontGlyph, FontGlyphBuffer, FontRenderer};
 
+/// 空字体渲染器。所有字符渲染为空白块，仅用于初始化和测试。
+///
+/// Empty font renderer. All characters render as blank blocks, used for initialization and testing.
 pub struct EmptyFontRenderer {
     width: usize,
     height: usize,
@@ -10,7 +13,10 @@ pub struct EmptyFontRenderer {
 assert_send_sync!(EmptyFontRenderer);
 
 impl EmptyFontRenderer {
-    #[allow(clippy::new_ret_no_self)]
+    /// 创建一个指定尺寸的空白字体渲染器。
+    ///
+    /// Create an empty font renderer with the specified dimensions.
+    #[expect(clippy::new_ret_no_self)]
     pub fn new(width: usize, height: usize) -> Box<dyn FontRenderer> {
         Box::new(Self { width, height })
     }

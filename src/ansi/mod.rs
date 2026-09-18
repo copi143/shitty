@@ -1,3 +1,23 @@
+//! ANSI 转义序列解析器。支持多种后端（通过 feature 切换）：
+//! - `vte`：基于 vte 库的完整解析器
+//! - `ansi-parser`：基于 ansi-parser 库
+//! - `shitty-parser`：内置的简单解析器（默认）
+//! - `fast-parser`：内置的更快的解析器
+//! - `none`：透传模式，不处理转义序列
+//!
+//! 解析器优先级：vte > ansi-parser > fast-parser > shitty-parser > none
+//!
+//! ---
+//!
+//! ANSI escape sequence parser. Supports multiple backends (selected via features):
+//! - `vte`: Full-featured parser based on the vte crate
+//! - `ansi-parser`: Parser based on the ansi-parser crate
+//! - `shitty-parser`: Simple built-in parser (default)
+//! - `fast-parser`: Faster built-in parser
+//! - `none`: Passthrough mode, no escape sequence processing
+//!
+//! Parser priority: vte > ansi-parser > fast-parser > shitty-parser > none
+
 use crate::Terminal;
 
 #[macro_use]

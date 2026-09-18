@@ -4,7 +4,7 @@ FILE=$1
 KEY=$2
 
 awk -v target="$KEY" '
-  /^#\s/ {
+  /^#/ {
     line = $0
     sub(/^#\s?/, "", line)
     comment = comment line "\n"

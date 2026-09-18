@@ -102,7 +102,7 @@ fn load_palettes() -> Vec<Palette> {
 }
 
 #[rustfmt::skip]
-#[allow(unused_must_use)]
+#[expect(unused_must_use)]
 fn gen_palettes() {
     let out_dir = env::var("OUT_DIR").expect("OUT_DIR environment variable not set");
     let dest_path = Path::new(&out_dir).join("palettes.rs");
@@ -135,28 +135,18 @@ fn gen_palettes() {
     writeln!(code, "];");
     writeln!(code);
     writeln!(code, "const DEFAULT_PALETTE_INDEX: usize = 0;");
+    writeln!(code);
+    writeln!(code, "/// Xterm 16-color palette.");
+    writeln!(code, "#[rustfmt::skip]");
+    writeln!(code, "const XTERM_COLORS: [u32; 16] = [");
+    writeln!(code, "    0x000000, 0xcd0000, 0x00cd00, 0xcdcd00, 0x0000ee, 0xcd00cd, 0x00cdcd, 0xe5e5e5,");
+    writeln!(code, "    0x7f7f7f, 0xff0000, 0x00ff00, 0xffff00, 0x5c5cff, 0xff00ff, 0x00ffff, 0xffffff,");
+    writeln!(code, "];");
 
     fs::write(&dest_path, code).unwrap();
 }
 
 fn check_features() {
-    let features = [
-        ("default-rgba", cfg!(feature = "default-rgba")),
-        ("default-bgra", cfg!(feature = "default-bgra")),
-        ("default-argb", cfg!(feature = "default-argb")),
-        ("default-abgr", cfg!(feature = "default-abgr")),
-    ];
-
-    let enabled: Vec<&str> =
-        features.iter().filter_map(|(name, enabled)| if *enabled { Some(*name) } else { None }).collect();
-
-    let hint = "Please enable exactly one of: default-rgba, default-bgra, default-argb, default-abgr in Cargo.toml.";
-    match enabled.len() {
-        1 => {}
-        0 => panic!("Error: No pixel format feature enabled. {hint}"),
-        _ => panic!("Error: Multiple pixel format features enabled ({enabled:?}). {hint}"),
-    }
-
     let woff2 = cfg!(feature = "font-woff2");
     let abglyph = cfg!(feature = "font-abglyph");
     let swash = cfg!(feature = "font-swash");

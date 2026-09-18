@@ -8,6 +8,10 @@ use super::abglyph::AbGlyphFont;
 #[cfg(feature = "font-swash")]
 use super::swash::SwashFont;
 
+/// WOFF2 字体渲染器。自动检测并解压 WOFF2 格式字体，然后委托给底层 TrueType 后端。
+///
+/// WOFF2 font renderer. Automatically detects and decompresses WOFF2 format fonts,
+/// then delegates to the underlying TrueType backend.
 pub struct Woff2Font {
     backend: Box<dyn FontRenderer>,
 }
@@ -21,7 +25,10 @@ impl Debug for Woff2Font {
 }
 
 impl Woff2Font {
-    #[allow(clippy::new_ret_no_self)]
+    #[expect(clippy::new_ret_no_self)]
+    /// 创建一个新的 WOFF2 字体渲染器。如果输入是 WOFF2 格式会自动解压。
+    ///
+    /// Create a new WOFF2 font renderer. Automatically decompresses if the input is WOFF2 format.
     pub fn new<T: Into<Bytes>>(font_size: i32, font_bytes: T) -> Box<dyn FontRenderer> {
         let backend = match font_bytes.into() {
             Bytes::Static(bytes) => {
